@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "source_scene": "../scenes/scene_inspection.xml",
+  "output_scene": "../scenes/scene_insertion.xml",
+  "camera_config": "camera.json",
+  "table_center_xy_m": [
+    0.35,
+    0.17
+  ],
+  "table_top_z_m": 0.22,
+  "workpiece_center_xy_m": [
+    0.295,
+    0.27
+  ],
+  "fixture_height_m": 0.06,
+  "table_clearance_m": 0.0005,
+  "slot_depth_m": 0.02,
+  "plug_size_m": [
+    0.016,
+    0.004,
+    0.1
+  ],
+  "plug_tip_tcp_m": [
+    0.0,
+    0.0,
+    0.08
+  ],
+  "plug_mass_kg": 0.02,
+  "lift_m": 0.12,
+  "observation": {
+    "distance_m": 0.28,
+    "elevation_deg": 40.0,
+    "azimuth_deg": 0.0
+  },
+  "preinsert_m": 0.03,
+  "insert_depth_m": 0.01,
+  "cartesian_step_m": 0.001,
+  "insert_speed_m_s": 0.015,
+  "collision_samples": 320,
+  "settle_s": 0.3,
+  "detection_timeout_s": 30.0,
+  "port_config": "port.json",
+  "aruco_config": "vision/aruco.json",
+  "pnp_config": "vision/pnp.json",
+  "route": "aruco"
+}

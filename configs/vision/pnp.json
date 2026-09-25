@@ -1,0 +1,17 @@
+{
+  "detection": {
+    "roi_margin_px": 35,
+    "search_band_px": 12,
+    "canny_low": 20,
+    "canny_high": 50,
+    "min_port_width_px": 40,
+    "min_port_height_px": 12,
+    "max_corner_shift_px": 25
+  },
+  "pose": {
+    "reprojection_threshold_px": 3.0,
+    "ambiguity_margin_px": 0.25,
+    "prior_rotation_weight": 0.025,
+    "prior_translation_weight": 0.004
+  }
+}

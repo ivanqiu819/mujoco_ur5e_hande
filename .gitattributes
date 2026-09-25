@@ -1,0 +1,13 @@
+* text=auto
+*.py text eol=lf
+*.md text eol=lf
+*.json text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.xml text eol=lf
+*.obj text eol=lf
+*.mtl text eol=lf
+*.stl binary
+*.STL binary
+*.png binary
+*.npy binary

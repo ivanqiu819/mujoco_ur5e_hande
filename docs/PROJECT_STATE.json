@@ -1,0 +1,46 @@
+{
+  "updated_at": "2026-09-25",
+  "status": "implemented_and_validated",
+  "entrypoints": {
+    "server": "apps/server.py",
+    "pose_debug": "apps/debug_pose.py",
+    "insertion": "apps/insert_socket.py",
+    "preview": "apps/preview.py"
+  },
+  "config_directory": "configs",
+  "algorithm_dependency": "local src/ur5e_sim/vision",
+  "original_algorithm_project": "unchanged; not a runtime dependency",
+  "test_results": {
+    "algorithm_local": 52,
+    "algorithm_original": 52,
+    "control_safety": 19,
+    "scene_rebuild": "passed",
+    "control_regression": "passed",
+    "protocol_recovery": "passed",
+    "gui_aruco": "passed",
+    "same_server_aruco_then_pnp": "passed",
+    "same_server_15mm_s": "passed"
+  },
+  "reports": {
+    "cycles": "outputs/acceptance/cycles.json",
+    "gui": "outputs/gui/cycles.json",
+    "details": "docs/VALIDATION.md",
+    "repeat": "outputs/repeat_insertion/repeat.json",
+    "speed_15mm": "outputs/speed_15mm/repeat.json"
+  },
+  "limitations": [
+    "GUI preview measured 11.3 fps versus target 15 Hz",
+    "preheld rigid plug",
+    "local sampled planning",
+    "nominal calibration",
+    "no force control"
+  ],
+  "archive_record": "docs/ARCHIVE.md",
+  "normal_cycle_final_state": "home",
+  "insertion_speed": {
+    "configured_m_s": 0.015,
+    "supported_max_m_s": 0.02,
+    "measured_peak_mm_s": 8.842,
+    "limit_source": "src/ur5e_sim/control/limits.py"
+  }
+}

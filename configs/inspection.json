@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "source_scene": "../scenes/scene_camera.xml",
+  "output_scene": "../scenes/scene_inspection.xml",
+  "remove_example_obstacle": true,
+  "camera_validation": {
+    "require_center_visible": true,
+    "require_full_workpiece_visible_at_home": false
+  },
+  "table": {
+    "name": "inspection_table",
+    "center_xy_m": [
+      0.35,
+      0.12
+    ],
+    "top_surface_height_m": 0.22,
+    "top_size_m": [
+      0.45,
+      0.4,
+      0.04
+    ],
+    "leg_size_m": [
+      0.05,
+      0.05,
+      0.18
+    ],
+    "leg_inset_m": 0.06,
+    "top_rgba": [
+      0.33,
+      0.25,
+      0.18,
+      1.0
+    ],
+    "leg_rgba": [
+      0.12,
+      0.13,
+      0.14,
+      1.0
+    ]
+  },
+  "workpiece": {
+    "name": "inspection_workpiece",
+    "mesh_file": "inspection_workpiece.stl",
+    "source_units": "millimeter",
+    "scale": [
+      0.001,
+      0.001,
+      0.001
+    ],
+    "center_xy_m": [
+      0.295,
+      0.12
+    ],
+    "quaternion_world_wxyz": [
+      0.7071067811865476,
+      0.7071067811865475,
+      0.0,
+      0.0
+    ],
+    "table_clearance_m": 0.0005,
+    "dynamic": false,
+    "mass_kg": 0.5,
+    "visual_rgba": [
+      0.82,
+      0.45,
+      0.1,
+      1.0
+    ],
+    "collision_proxy": "bounding_box"
+  }
+}

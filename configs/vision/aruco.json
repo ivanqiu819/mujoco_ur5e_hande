@@ -1,0 +1,10 @@
+{
+  "corner_refinement_window_px": 5,
+  "min_marker_side_px": 12,
+  "pose": {
+    "reprojection_threshold_px": 3.0,
+    "ambiguity_margin_px": 0.25,
+    "prior_rotation_weight": 0.025,
+    "prior_translation_weight": 0.004
+  }
+}

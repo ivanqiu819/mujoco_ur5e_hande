@@ -1,0 +1,13 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ur5e-sim"
+version = "0.2.0"
+description = "UR5e eye-in-hand simulation and socket insertion"
+requires-python = ">=3.11"
+dependencies = ["mujoco>=3.14,<4", "numpy>=1.24", "opencv-python>=4.8,<5", "trimesh>=4.4,<5", "PyYAML>=6,<7", "matplotlib>=3.7", "Pillow>=9"]
+
+[tool.setuptools.packages.find]
+where = ["src"]

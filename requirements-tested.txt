@@ -1,0 +1,9 @@
+# Top-level package versions used by the validated Linux / Python 3.11 environment.
+# pyproject.toml defines compatibility ranges; this file records tested versions.
+mujoco==3.14.0
+numpy==2.4.6
+opencv-python==4.14.0.94
+trimesh==4.12.2
+PyYAML==6.0.3
+matplotlib==3.11.2
+Pillow==12.3.0

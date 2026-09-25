@@ -1,0 +1,24 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+.cache/
+outputs/
+
+# Local environments, credentials and editor files
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+.pytest_cache/
+.coverage
+htmlcov/
+dist/
+.vscode/
+.idea/
+.DS_Store
+*.swp
+
+# Machine-specific backup location (the archive itself lives outside this repo)
+docs/ARCHIVE.json

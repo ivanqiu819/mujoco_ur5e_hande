@@ -1,0 +1,296 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mujoco model="UR5e + Robotiq Hand-E migration">
+  <!--
+    MuJoCo-native replacement for the supplied Isaac Sim assembly.
+
+    Conventions:
+      - lengths: metres
+      - angles: radians
+      - quaternions exposed by Python: [w, x, y, z]
+      - the tcp site is copied from ur5e_cumotion.urdf
+      - arm collision spheres are copied from ur5e_cumotion.xrdf
+  -->
+  <compiler angle="radian" eulerseq="xyz" meshdir="../assets/meshes"
+            autolimits="true" inertiafromgeom="false" fusestatic="false"/>
+  <option timestep="0.002" integrator="implicitfast" gravity="0 0 -9.81">
+    <flag contact="enable"/>
+  </option>
+  <size njmax="2000" nconmax="500"/>
+  <statistic center="0 0 0.35" extent="1.25"/>
+
+  <visual>
+    <headlight diffuse="0.75 0.75 0.75" ambient="0.25 0.25 0.25" specular="0.2 0.2 0.2"/>
+    <rgba haze="0.15 0.25 0.35 1"/>
+    <global azimuth="135" elevation="-25"/>
+  </visual>
+
+  <default>
+    <joint limited="true" damping="1.0" armature="0.01" frictionloss="0.05"/>
+    <geom condim="4" friction="0.8 0.02 0.002" solref="0.005 1" solimp="0.9 0.95 0.001"/>
+    <default class="visual">
+      <geom type="mesh" contype="0" conaffinity="0" group="2" density="0"/>
+    </default>
+    <default class="collision">
+      <!-- Alpha zero keeps planning/physics proxies hidden in the normal view. -->
+      <geom contype="1" conaffinity="1" group="3" rgba="0.2 0.9 0.25 0"/>
+    </default>
+    <default class="arm_joint">
+      <joint type="hinge" axis="0 0 1" damping="2.0" armature="0.05"/>
+    </default>
+    <default class="finger_joint">
+      <joint type="slide" damping="4.0" armature="0.005"/>
+    </default>
+  </default>
+
+  <asset>
+    <texture name="ground_tex" type="2d" builtin="checker" rgb1="0.24 0.27 0.30"
+             rgb2="0.16 0.18 0.20" width="512" height="512"/>
+    <material name="ground_mat" texture="ground_tex" texrepeat="6 6" reflectance="0.08"/>
+    <material name="ur_white" rgba="0.91 0.92 0.93 1"/>
+    <material name="ur_blue" rgba="0.52 0.72 0.84 1"/>
+    <material name="ur_dark" rgba="0.18 0.19 0.20 1"/>
+    <material name="hande_white" rgba="0.86 0.87 0.88 1"/>
+    <material name="hande_dark" rgba="0.14 0.15 0.16 1"/>
+
+    <!-- UR5e visual meshes. The lower-poly collision meshes are intentionally
+         not used: XRDF spheres give deterministic and inexpensive contacts. -->
+    <mesh name="base_visual" file="mesh.obj"/>
+    <mesh name="shoulder_visual" file="mesh_2.obj"/>
+    <mesh name="upper_arm_visual" file="mesh_4.obj"/>
+    <mesh name="forearm_visual" file="mesh_6.obj"/>
+    <mesh name="wrist_1_visual" file="mesh_8.obj"/>
+    <mesh name="wrist_2_visual" file="mesh_10.obj"/>
+    <mesh name="wrist_3_visual" file="mesh_12.obj"/>
+
+    <!-- Robotiq Hand-E base meshes. -->
+    <mesh name="hande_washer_11" file="toothed_lock_washer_metric_robotiq_11ROBOTIQ_HAND_E_DEFEATURE.obj"/>
+    <mesh name="hande_group3_0" file="Group3ROBOTIQ_HAND_E_DEFEATURE.obj"/>
+    <mesh name="hande_screw_6" file="socket_head_cap_screw_iso_robotiq_6ROBOTIQ_HAND_E_DEFEATURE.obj"/>
+    <mesh name="hande_washer_13" file="toothed_lock_washer_metric_robotiq_13ROBOTIQ_HAND_E_DEFEATURE.obj"/>
+    <mesh name="hande_group3_1" file="Group3ROBOTIQ_HAND_E_DEFEATURE_1.obj"/>
+    <mesh name="hande_washer_10" file="toothed_lock_washer_metric_robotiq_10ROBOTIQ_HAND_E_DEFEATURE.obj"/>
+    <mesh name="hande_screw_24" file="socket_head_cap_screw_iso_robotiq_24ROBOTIQ_HAND_E_DEFEATURE.obj"/>
+    <mesh name="hande_group3_2" file="Group3ROBOTIQ_HAND_E_DEFEATURE_2.obj"/>
+    <mesh name="hande_washer_12" file="toothed_lock_washer_metric_robotiq_12ROBOTIQ_HAND_E_DEFEATURE.obj"/>
+    <mesh name="hande_group3_3" file="Group3ROBOTIQ_HAND_E_DEFEATURE_3.obj"/>
+    <mesh name="hande_screw_7" file="socket_head_cap_screw_iso_robotiq_7ROBOTIQ_HAND_E_DEFEATURE.obj"/>
+    <mesh name="hande_screw_25" file="socket_head_cap_screw_iso_robotiq_25ROBOTIQ_HAND_E_DEFEATURE.obj"/>
+    <mesh name="hande_group3_4" file="Group3ROBOTIQ_HAND_E_DEFEATURE_4.obj"/>
+    <mesh name="hande_group2" file="Group2ROBOTIQ_HAND_E_DEFEATURE.obj"/>
+    <mesh name="hande_group3_5" file="Group3ROBOTIQ_HAND_E_DEFEATURE_5.obj"/>
+    <mesh name="hande_group1" file="Group1ROBOTIQ_HAND_E_DEFEATURE.obj"/>
+
+    <!-- Robotiq moving finger meshes. -->
+    <mesh name="left_finger_0" file="D_A03_ASM_DOIGTS_PARALLELES_1ROBOTIQ_HAND_E_DEFEATURE.obj"/>
+    <mesh name="left_finger_1" file="D_A03_ASM_DOIGTS_PARALLELES_1ROBOTIQ_HAND_E_DEFEATURE_1.obj"/>
+    <mesh name="left_finger_2" file="D_A03_ASM_DOIGTS_PARALLELES_1ROBOTIQ_HAND_E_DEFEATURE_2.obj"/>
+    <mesh name="right_finger_0" file="D_A03_ASM_DOIGTS_PARALLELES_1ROBOTIQ_HAND_E_DEFEATURE_3.obj"/>
+    <mesh name="right_finger_1" file="D_A03_ASM_DOIGTS_PARALLELES_1ROBOTIQ_HAND_E_DEFEATURE_4.obj"/>
+    <mesh name="right_finger_2" file="D_A03_ASM_DOIGTS_PARALLELES_1ROBOTIQ_HAND_E_DEFEATURE_5.obj"/>
+  </asset>
+
+  <worldbody>
+    <light name="key" pos="1.5 -1.5 2.5" dir="-0.5 0.5 -1" diffuse="0.85 0.85 0.85"/>
+    <light name="fill" pos="-1 1 1.8" dir="0.4 -0.4 -1" diffuse="0.35 0.35 0.35"/>
+    <geom name="ground" type="plane" size="3 3 0.05" material="ground_mat"
+          contype="1" conaffinity="1"/>
+
+    <!-- A fixed example obstacle. It does not fall when simulation starts. -->
+    <body name="example_obstacle" pos="0.40 -0.35 0.20">
+      <geom name="example_obstacle_geom" type="box" size="0.06 0.06 0.20"
+            rgba="0.55 0.12 0.10 1" contype="1" conaffinity="1"/>
+    </body>
+
+    <!-- Move this mocap body to display a desired TCP pose. -->
+    <body name="tcp_target" mocap="true" pos="0.30 0.12 0.37">
+      <site name="tcp_target_site" type="sphere" size="0.008" rgba="0.1 0.9 0.2 0.8" group="4"/>
+      <site name="tcp_target_x" type="cylinder" fromto="0 0 0 0.04 0 0" size="0.002" rgba="1 0.15 0.15 0.8" group="4"/>
+      <site name="tcp_target_y" type="cylinder" fromto="0 0 0 0 0.04 0" size="0.002" rgba="0.15 1 0.15 0.8" group="4"/>
+      <site name="tcp_target_z" type="cylinder" fromto="0 0 0 0 0 0.04" size="0.002" rgba="0.15 0.35 1 0.8" group="4"/>
+    </body>
+
+    <!-- Preserve /World/ur5e xformOp:translate from ur5e_insertion.usd so
+         previously recorded world-frame TCP targets remain compatible. -->
+    <body name="base_link" pos="-0.20000000298023224 -0.011434281743887525 0">
+      <inertial pos="0 0 0" mass="4" diaginertia="0.00443333155 0.00443333155 0.00719999988"/>
+      <geom class="visual" mesh="base_visual" quat="0.7071100009174303 0.707103561441004 0 0" material="ur_dark"/>
+      <geom class="collision" name="base_collision" type="cylinder" pos="0 0 0.0495" size="0.0755 0.0495"/>
+
+      <body name="shoulder_link" pos="0 0 0.162499994" euler="0 0 -3.14159257" gravcomp="1">
+        <inertial pos="0 0 0" mass="3.70000005" diaginertia="0.0102674961 0.0102674961 0.00665999996"/>
+        <joint class="arm_joint" name="shoulder_pan_joint" range="-6.28318531 6.28318531"/>
+        <geom class="visual" mesh="shoulder_visual"
+              quat="2.955358945513185e-08 2.9553320317879705e-08 -0.7071035614410033 -0.7071100009174296"
+              material="ur_blue"/>
+        <geom class="collision" name="shoulder_collision_0" type="sphere" pos="-0.001 0.001 0.004" size="0.0686"/>
+        <geom class="collision" name="shoulder_collision_1" type="sphere" pos="-0.001 -0.016 -0.006" size="0.0678"/>
+
+        <body name="upper_arm_link" euler="1.57079627 0 0" gravcomp="1">
+          <inertial pos="-0.212500006 0 0.137999997" mass="8.39299965"
+                    fullinertia="0.0151073998 0.133885786 0.133885786 0 4.06561095e-09 0"/>
+          <joint class="arm_joint" name="shoulder_lift_joint" range="-6.28318531 6.28318531"/>
+          <geom class="visual" mesh="upper_arm_visual" pos="0 -8.22544133e-09 0.137999997"
+                quat="3.169340456974553e-06 0.7071067659041339 -0.7071067964544371 -3.239585346034271e-06"
+                material="ur_white"/>
+          <geom class="collision" name="upper_collision_0" type="sphere" pos="-0.183 0 0.150" size="0.0695"/>
+          <geom class="collision" name="upper_collision_1" type="sphere" pos="-0.344 0 0.126" size="0.0689"/>
+          <geom class="collision" name="upper_collision_2" type="sphere" pos="-0.030 0 0.146" size="0.0689"/>
+          <geom class="collision" name="upper_collision_3" type="sphere" pos="-0.425 0 0.142" size="0.0689"/>
+          <geom class="collision" name="upper_collision_4" type="sphere" pos="-0.270 -0.001 0.151" size="0.0689"/>
+          <geom class="collision" name="upper_collision_5" type="sphere" pos="-0.110 0 0.137" size="0.0689"/>
+          <geom class="collision" name="upper_collision_6" type="sphere" pos="0.001 0 0.135" size="0.0684"/>
+          <geom class="collision" name="upper_collision_7" type="sphere" pos="-0.226 -0.001 0.123" size="0.0678"/>
+
+          <body name="forearm_link" pos="-0.425000012 0 0" euler="5.96046448e-08 0 0" gravcomp="1">
+            <inertial pos="-0.196099997 0 0.00700000022" mass="2.2750001"
+                      fullinertia="0.00409500068 0.0312093552 0.0312093552 0 9.28084817e-10 0"/>
+            <joint class="arm_joint" name="elbow_joint" range="-3.14159265 3.14159265"/>
+            <geom class="visual" mesh="forearm_visual" pos="0 0 0.00700000022"
+                  quat="3.1904138829311646e-06 0.7071067659040391 -0.7071067964545334 -3.2185119209881463e-06"
+                  material="ur_white"/>
+            <geom class="collision" name="forearm_collision_0" type="sphere" pos="-0.062 0.001 0.012" size="0.0586"/>
+            <geom class="collision" name="forearm_collision_1" type="sphere" pos="-0.225 0 0.013" size="0.0571"/>
+            <geom class="collision" name="forearm_collision_2" type="sphere" pos="-0.155 -0.002 0.013" size="0.0571"/>
+            <geom class="collision" name="forearm_collision_3" type="sphere" pos="-0.317 0 -0.001" size="0.0526"/>
+            <geom class="collision" name="forearm_collision_4" type="sphere" pos="-0.386 0 0.021" size="0.0486"/>
+            <geom class="collision" name="forearm_collision_5" type="sphere" pos="-0.010 0.001 -0.018" size="0.0521"/>
+            <geom class="collision" name="forearm_collision_6" type="sphere" pos="-0.268 0 -0.001" size="0.0541"/>
+            <geom class="collision" name="forearm_collision_7" type="sphere" pos="-0.122 0 0.005" size="0.0576"/>
+
+            <body name="wrist_1_link" pos="-0.392199993 0 0.133300006" gravcomp="1">
+              <inertial pos="0 0 0" mass="1.21899998" diaginertia="0.00255989889 0.00255989889 0.00219419994"/>
+              <joint class="arm_joint" name="wrist_1_joint" range="-6.28318531 6.28318531"/>
+              <geom class="visual" mesh="wrist_1_visual" pos="-1.16534574e-08 0 -0.127000016"
+                    quat="4.536794896693603e-06 0.9999999999897088 0 0" material="ur_blue"/>
+              <geom class="collision" name="wrist1_collision_0" type="sphere" pos="0 -0.009 -0.007" size="0.0463"/>
+              <geom class="collision" name="wrist1_collision_1" type="sphere" pos="0 0.014 -0.033" size="0.0463"/>
+              <geom class="collision" name="wrist1_collision_2" type="sphere" pos="-0.001 0.016 0" size="0.0456"/>
+
+              <body name="wrist_2_link" pos="-1.16534573e-08 -0.0996999964 -1.1857699e-08"
+                    euler="1.57079627 0 0" gravcomp="1">
+                <inertial pos="0 0 0" mass="1.21899998" diaginertia="0.00255989889 0.00255989889 0.00219419994"/>
+                <joint class="arm_joint" name="wrist_2_joint" range="-6.28318531 6.28318531"/>
+                <geom class="visual" mesh="wrist_2_visual" pos="0 5.96303247e-09 -0.0997000039"
+                      quat="0.7071099797043231 0.7071035826543037 0 0" material="ur_blue"/>
+                <geom class="collision" name="wrist2_collision_0" type="sphere" pos="0 -0.013 0" size="0.0466"/>
+                <geom class="collision" name="wrist2_collision_1" type="sphere" pos="0.001 0.015 0.001" size="0.0454"/>
+
+                <body name="wrist_3_link" pos="0 0.0996000022 -1.53438583e-09"
+                      quat="0.7071068224797781 -0.707106739893312 -6.181723851757021e-08 -2.8247027109476064e-15"
+                      gravcomp="1">
+                  <inertial pos="0 0 -0.0228999984" mass="0.187900007"
+                            diaginertia="9.89041e-05 9.89041e-05 0.000132117188"/>
+                  <joint class="arm_joint" name="wrist_3_joint" range="-6.28318531 6.28318531"/>
+                  <geom class="visual" mesh="wrist_3_visual" pos="-8.7073101e-09 -5.91533006e-09 -0.0989000276"
+                        quat="4.566794896510968e-06 0.9999999999895722 0 0" material="ur_white"/>
+                  <geom class="collision" name="wrist3_collision_0" type="sphere" pos="0.013 -0.007 -0.023" size="0.0272"/>
+                  <geom class="collision" name="wrist3_collision_1" type="sphere" pos="-0.013 0.006 -0.022" size="0.0272"/>
+                  <geom class="collision" name="wrist3_collision_2" type="sphere" pos="0.009 0.012 -0.022" size="0.0272"/>
+                  <geom class="collision" name="hande_base_collision_0" type="sphere" pos="0 0 0.010" size="0.040"/>
+                  <geom class="collision" name="hande_base_collision_1" type="sphere" pos="0 -0.001 0.057" size="0.040"/>
+
+                  <!-- Exact fixed TCP transform from ur5e_cumotion.urdf. -->
+                  <site name="tcp" type="sphere" size="0.006" group="4"
+                        pos="0.002504158005067814 -0.001958227572379068 0.1361764956035346"
+                        quat="0.7071067254655244 2.7185828886048254e-05 -2.8880142212134922e-05 0.7071068357951941"
+                        rgba="0.1 1 0.2 0.9"/>
+
+                  <body name="hande_base_link" pos="-8.70730921e-09 0 -2.9802322e-08"
+                        quat="5.706854901819317e-17 -1.7948965149208049e-09 0.9999999999999994 -3.179489655464128e-08"
+                        gravcomp="1">
+                    <!-- Approximate Hand-E inertial; replace with measured CAD data
+                         before force-sensitive grasping experiments. -->
+                    <inertial pos="0 0 -0.075" mass="0.90" diaginertia="0.0012 0.0012 0.0008"/>
+
+                    <geom class="visual" mesh="hande_washer_11" pos="-0.00250428345 -0.00195366552 -0.0790737225" euler="-1.57079633 0 -8.74227727e-08" material="hande_dark"/>
+                    <geom class="visual" mesh="hande_group3_0" pos="-0.00250428345 -0.00195366552 -0.0790737225" euler="-1.57079633 0 -8.74227727e-08" material="hande_dark"/>
+                    <geom class="visual" mesh="hande_screw_6" pos="-0.00250428345 -0.00195366552 -0.0790737225" euler="-1.57079633 0 -8.74227727e-08" material="hande_dark"/>
+                    <geom class="visual" mesh="hande_washer_13" pos="-0.00250428345 -0.00195366552 -0.0790737225" euler="-1.57079633 0 -8.74227727e-08" material="hande_dark"/>
+                    <geom class="visual" mesh="hande_group3_1" pos="-0.00250428345 -0.00195366552 -0.0790737225" euler="-1.57079633 0 -8.74227727e-08" material="hande_dark"/>
+                    <geom class="visual" mesh="hande_washer_10" pos="-0.00250428345 -0.00195366552 -0.0790737225" euler="-1.57079633 0 -8.74227727e-08" material="hande_dark"/>
+                    <geom class="visual" mesh="hande_screw_24" pos="-0.00250428345 -0.00195366552 -0.0790737225" euler="-1.57079633 0 -8.74227727e-08" material="hande_dark"/>
+                    <geom class="visual" mesh="hande_group3_2" pos="-0.00250428345 -0.00195366552 -0.0790737225" euler="-1.57079633 0 -8.74227727e-08" material="hande_dark"/>
+                    <geom class="visual" mesh="hande_washer_12" pos="-0.00250428345 -0.00195366552 -0.0790737225" euler="-1.57079633 0 -8.74227727e-08" material="hande_dark"/>
+                    <geom class="visual" mesh="hande_group3_3" pos="-0.00250428345 -0.00195366552 -0.0790737225" euler="-1.57079633 0 -8.74227727e-08" material="hande_dark"/>
+                    <geom class="visual" mesh="hande_screw_7" pos="-0.00250428345 -0.00195366552 -0.0790737225" euler="-1.57079633 0 -8.74227727e-08" material="hande_dark"/>
+                    <geom class="visual" mesh="hande_screw_25" pos="-0.00250428345 -0.00195366552 -0.0790737225" euler="-1.57079633 0 -8.74227727e-08" material="hande_dark"/>
+                    <geom class="visual" mesh="hande_group3_4" pos="-0.00250428345 -0.00195366552 -0.0790737225" euler="-1.57079633 0 -8.74227727e-08" material="hande_dark"/>
+                    <geom class="visual" mesh="hande_group2" pos="-0.00250428345 -0.00195366552 -0.0790737225" euler="-1.57079633 0 -8.74227727e-08" material="hande_white"/>
+                    <geom class="visual" mesh="hande_group3_5" pos="-0.00250428345 -0.00195366552 -0.0790737225" euler="-1.57079633 0 -8.74227727e-08" material="hande_dark"/>
+                    <geom class="visual" mesh="hande_group1" pos="-0.00250428345 -0.00195366552 -0.0790737225" euler="-1.57079633 0 -8.74227727e-08" material="hande_white"/>
+
+                    <body name="left_gripper" pos="0.00874571387 -0.037726385 -0.0771737225"
+                          quat="0.7071067800533717 -0.707106782319722 3.090861775268274e-08 -3.0908617653617423e-08"
+                          gravcomp="1">
+                      <inertial pos="-0.006 0.031 0.022" mass="0.05" diaginertia="3e-05 2e-05 2e-05"/>
+                      <joint class="finger_joint" name="Slider_1" axis="0 0 -1" range="-0.025 0.025"/>
+                      <geom class="visual" mesh="left_finger_0" pos="-0.0112500004 0.00190000003 0.0357758645" material="hande_dark"/>
+                      <geom class="visual" mesh="left_finger_1" pos="-0.0112500004 0.00190000003 0.0357758645" material="hande_dark"/>
+                      <geom class="visual" mesh="left_finger_2" pos="-0.0112500004 0.00190000003 0.0357758645" material="hande_white"/>
+                      <geom class="collision" name="left_finger_collision" type="box"
+                            pos="-0.006 0.031 0.022" size="0.012 0.030 0.015"/>
+                    </body>
+
+                    <body name="right_gripper" pos="-0.0137542808 0.0338190539 -0.0771737225"
+                          quat="0.7071067800533717 -0.707106782319722 3.090861775268274e-08 -3.0908617653617423e-08"
+                          gravcomp="1">
+                      <inertial pos="0.006 0.031 -0.022" mass="0.05" diaginertia="3e-05 2e-05 2e-05"/>
+                      <joint class="finger_joint" name="Slider_2" axis="0 0 1" range="-0.025 0.025"/>
+                      <geom class="visual" mesh="right_finger_0" pos="0.0112500004 0.00190000003 -0.0357758645" material="hande_dark"/>
+                      <geom class="visual" mesh="right_finger_1" pos="0.0112500004 0.00190000003 -0.0357758645" material="hande_dark"/>
+                      <geom class="visual" mesh="right_finger_2" pos="0.0112500004 0.00190000003 -0.0357758645" material="hande_white"/>
+                      <geom class="collision" name="right_finger_collision" type="box"
+                            pos="0.006 0.031 -0.022" size="0.012 0.030 0.015"/>
+                    </body>
+                  </body>
+                </body>
+              </body>
+            </body>
+          </body>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+
+  <contact>
+    <!-- Equivalent to the adjacent-link ignore list in the supplied XRDF. -->
+    <exclude body1="base_link" body2="shoulder_link"/>
+    <exclude body1="shoulder_link" body2="upper_arm_link"/>
+    <exclude body1="upper_arm_link" body2="forearm_link"/>
+    <exclude body1="forearm_link" body2="wrist_1_link"/>
+    <exclude body1="wrist_1_link" body2="wrist_2_link"/>
+    <exclude body1="wrist_2_link" body2="wrist_3_link"/>
+    <exclude body1="wrist_3_link" body2="hande_base_link"/>
+    <exclude body1="hande_base_link" body2="left_gripper"/>
+    <exclude body1="hande_base_link" body2="right_gripper"/>
+  </contact>
+
+  <equality>
+    <!-- Both exported slider coordinates use the same opening value. -->
+    <joint name="finger_sync" joint1="Slider_1" joint2="Slider_2" polycoef="0 1 0 0 0"/>
+  </equality>
+
+  <actuator>
+    <position name="shoulder_pan" joint="shoulder_pan_joint" kp="1200" kv="80"
+              forcelimited="true" forcerange="-150 150" ctrlrange="-6.28318531 6.28318531"/>
+    <position name="shoulder_lift" joint="shoulder_lift_joint" kp="1200" kv="80"
+              forcelimited="true" forcerange="-150 150" ctrlrange="-6.28318531 6.28318531"/>
+    <position name="elbow" joint="elbow_joint" kp="1000" kv="70"
+              forcelimited="true" forcerange="-150 150" ctrlrange="-3.14159265 3.14159265"/>
+    <position name="wrist_1" joint="wrist_1_joint" kp="500" kv="35"
+              forcelimited="true" forcerange="-28 28" ctrlrange="-6.28318531 6.28318531"/>
+    <position name="wrist_2" joint="wrist_2_joint" kp="500" kv="35"
+              forcelimited="true" forcerange="-28 28" ctrlrange="-6.28318531 6.28318531"/>
+    <position name="wrist_3" joint="wrist_3_joint" kp="350" kv="25"
+              forcelimited="true" forcerange="-28 28" ctrlrange="-6.28318531 6.28318531"/>
+    <position name="gripper" joint="Slider_1" kp="2500" kv="30"
+              forcelimited="true" forcerange="-200 200" ctrlrange="-0.025 0.025"/>
+  </actuator>
+
+  <keyframe>
+    <!-- Joint order: six UR5e joints, Slider_1, Slider_2. -->
+    <key name="home"
+         qpos="-0.00011260862811468542 -1.5705478191375732 1.5708955526351929 -1.5707768201828003 -1.570802092552185 -4.7790759793997495e-08 0.02 0.02"
+         ctrl="-0.00011260862811468542 -1.5705478191375732 1.5708955526351929 -1.5707768201828003 -1.570802092552185 -4.7790759793997495e-08 0.02"/>
+  </keyframe>
+</mujoco>

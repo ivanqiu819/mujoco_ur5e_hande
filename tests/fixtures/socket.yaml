@@ -1,0 +1,93 @@
+# 日常使用只需修改本节：相机始终朝向插口中心附近。
+camera:
+  distance_mm: 100.0       # 相机到观察目标的距离，始终用毫米
+  azimuth_deg: 0.0        # 0 正视；正值将相机移到插口右侧
+  elevation_deg: 50.0      # 0 水平；正值将相机抬到插口上方；顶面 ArUco 建议至少 25°
+  roll_deg: 0.0            # 正值使画面顺时针旋转
+  target_offset_mm: [0, 0, 0]  # 观察目标相对口中心的偏移：右、下、插入方向
+  image_size: [1280, 720]  # 宽、高，像素
+  intrinsics: {fx: 1000.0, fy: 1000.0, cx: 640.0, cy: 360.0}
+  distortion: [0, 0, 0, 0, 0]  # OpenCV: k1, k2, p1, p2, k3
+
+# 换模型时：修改路径、单位，并同时修改下面的 port 定义。
+# 所有相对文件路径均相对于本 YAML 所在目录，和启动目录无关。
+model:
+  path: ../../assets/meshes/inspection_workpiece.stl
+  unit: mm                # STL 不自带单位；支持 mm / cm / m
+
+port:
+  # 下列坐标和尺寸使用 model.unit，均为 STL 原始坐标，不能填图像像素。
+  center: [80, 20, 115]    # 开口平面的中心
+  normal: [0, 0, 1]        # 朝向外部的方向；插入方向与它相反
+  up: [0, 1, 0]            # 插口上方，用来确定画面的左右和上下
+  inner_size: [18, 6]      # 内口宽、高
+  outer_size: [20, 8]      # 外口宽、高
+  # 顶面后缘：从正面看左后、右后。没有这类特征时填 []，只求平面位姿。
+  top_rear_points: [[70, 24, 55], [90, 24, 55]]
+
+# 仅 ArUco_demo.py 使用；run_demo.py 不会渲染贴纸或读取这些检测参数。
+aruco:
+  dictionary: DICT_4X4_50
+  marker_id: 0             # 必须属于所选字典；生成和识别使用同一个 ID
+  marker_size_mm: 14.0     # 黑色外边框正方形的边长，不含外围白边，始终为毫米
+  white_margin_mm: 2.0     # 每侧白边；完整贴纸为 18×18 mm
+  # 以下位置相对于端口坐标系，不是 STL 原始坐标！X 右、Y 下、Z 向孔内。
+  # 顶面为 Y=-4 mm，-4.05 让贴纸浮起 0.05 mm，避免与 STL 表面重合。
+  center_port_mm: [0, -4.05, 16]
+  # 标记轴：X 向码右，Y 向码上，Z 朝印刷面外；旋转将标记轴转换到端口轴。
+  # 绕 X/Y/Z 的角度，R = Rz @ Ry @ Rx；[90,0,0] 将标记平放在顶面。
+  rotation_port_deg: [90, 0, 0]
+  corner_refinement_window_px: 3  # 亚像素精修窗口半径；太大会混入码内黑白格
+  min_marker_side_px: 12    # 实际观测到的最短边门限；过小则不给位姿
+  output_directory: ../../outputs/aruco
+
+simulation:
+  # camera 是名义机位。以下扰动施加到物体，模拟实际到位误差。
+  # 检测器不知道这些扰动，真值只用于渲染与最终误差评估。
+  rotation_offset_deg: [1.0, -1.0, 0.5]  # 绕端口 X/Y/Z；顺序 Rz @ Ry @ Rx
+  translation_offset_mm: [0.4, -0.3, 0.8]  # 端口坐标：右、下、插入
+  noise_std_gray: 1.4       # 0 为无随机噪声
+  random_seed: 20260917     # 固定后可重复实验
+
+render:
+  supersample: 3           # 每轴 3 个子像素，减少细边锯齿；设为 1 可提高速度
+  background_gray: 245
+  default_gray: 130        # 底板等未指定区域的基础灰度
+  ambient: 0.45            # 环境光比例，其余为方向光
+  light_direction_camera: [-0.3, -0.5, -1.0]  # 从表面指向光源，相机坐标系
+  near_clip_mm: 0.5
+  # STL 只有形状，没有颜色。下面只设置材质，不添加或改变模型几何。
+  # 三角形的全部顶点位于原 STL 坐标包围盒内才匹配；后面的区域优先。
+  # 换其他 STL 时修改这些区域，或设为 [] 统一灰度。
+  material_regions:
+    - name: socket_shell
+      min: [70, 16, 55]
+      max: [90, 24.00001, 115]
+      gray: 170
+    # 前唇略亮，避免某些观察角度下前唇与顶面恰好同灰，导致真实边缘消失。
+    - name: socket_front_rim
+      min: [70, 16, 115]
+      max: [90, 24.00001, 115]
+      gray: 240
+    - name: socket_cavity
+      min: [71, 17, 95]
+      max: [89, 23, 115]
+      gray: 48
+
+detection:
+  roi_margin_px: 35         # 名义投影周围额外搜索范围
+  search_band_px: 12        # 预测边附近的搜索带宽
+  canny_low: 20             # 细窄前唇与顶面灰度接近，需要保留较弱梯度边缘
+  canny_high: 50
+  min_port_width_px: 40     # 太小无法可靠分辨，直接给出诊断
+  min_port_height_px: 12
+  max_corner_shift_px: 25   # 检测点与名义点允许的最大差距
+
+pose:
+  reprojection_threshold_px: 3.0
+  ambiguity_margin_px: 0.25        # 无先验模式：同类候选像素评分差在此范围内时保留歧义
+  prior_rotation_weight: 0.025     # IPPE 两个候选的名义姿态排序权重
+  prior_translation_weight: 0.004  # 平移差用 mm，仅用于排序
+
+output:
+  directory: ../../outputs

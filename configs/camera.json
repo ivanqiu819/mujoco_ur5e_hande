@@ -1,0 +1,116 @@
+{
+  "schema_version": 2,
+  "camera_name": "ee_camera",
+  "parent_body": "wrist_3_link",
+  "hardware": {
+    "camera_model": "Teledyne FLIR Blackfly S BFS-U3-51S5C-C",
+    "sensor_model": "Sony IMX250 color global shutter",
+    "native_resolution": [
+      2448,
+      2048
+    ],
+    "pixel_size_um": [
+      3.45,
+      3.45
+    ],
+    "sensor_size_m": [
+      0.0084456,
+      0.0070656
+    ],
+    "camera_body_size_m": [
+      0.029,
+      0.029,
+      0.03
+    ],
+    "camera_mass_kg": 0.036,
+    "camera_max_fps": 73.0,
+    "real_depth_stream": false,
+    "lens_model": "Edmund Optics TECHSPEC 16mm C Series #59-870",
+    "lens_focal_length_m": 0.016,
+    "lens_size_m": {
+      "diameter": 0.033,
+      "length": 0.0405
+    },
+    "lens_mass_kg": 0.074,
+    "lens_min_working_distance_m": 0.1,
+    "lens_max_distortion_percent": -0.77
+  },
+  "output_profile": {
+    "mode": "full_sensor_software_resize",
+    "width": 1280,
+    "height": 1072,
+    "source_roi_xywh": [
+      0,
+      0,
+      2448,
+      2048
+    ],
+    "resize_scale_xy": [
+      0.5228758169934641,
+      0.5234375
+    ],
+    "intrinsics_nominal": {
+      "fx": 2424.9313251870794,
+      "fy": 2427.536231884058,
+      "cx": 639.5,
+      "cy": 535.5,
+      "source": "Thin-lens estimate from 16 mm focal length and 3.45 um pixels; replace with checkerboard calibration"
+    }
+  },
+  "simulation_ground_truth_depth": {
+    "enabled": true,
+    "min_m": 0.05,
+    "max_m": 1.0,
+    "noise_std_m": 0.0
+  },
+  "preview_hz": 15.0,
+  "mount": {
+    "position_parent_m": [
+      0.075,
+      0.0,
+      0.055
+    ],
+    "look_at_parent_m": [
+      0.0025,
+      -0.002,
+      0.25
+    ],
+    "up_hint_parent": [
+      0.0,
+      0.0,
+      1.0
+    ],
+    "note": "Collision-free side-mount placeholder; replace with bracket CAD and measured hand-eye transform"
+  },
+  "optical_frame": {
+    "position_mount_m": [
+      0.0,
+      0.0,
+      -0.0255
+    ],
+    "quaternion_mount_wxyz": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "origin_note": "Simulation pinhole is 1.08 mm ahead of the modeled lens front to prevent self-occlusion; replace with calibrated intrinsics and measured hand-eye extrinsics"
+  },
+  "mechanical_model": {
+    "lens_center_z_m": -0.00417,
+    "camera_body_center_z_m": 0.03108,
+    "bracket_start_parent_m": [
+      0.035,
+      0.0,
+      0.012
+    ],
+    "bracket_radius_m": 0.006,
+    "camera_rgba": [
+      0.08,
+      0.09,
+      0.1,
+      1.0
+    ]
+  },
+  "render_supersample": 3
+}
