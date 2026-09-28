@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import argparse
-import json
 import math
 from pathlib import Path
 import struct
 import xml.etree.ElementTree as ET
 
 import numpy as np
+
+from ur5e_sim.config_io import read_config
 
 
 from ur5e_sim.paths import ROOT as ROOT
@@ -89,7 +90,7 @@ def main():
                         default=ROOT / "configs/inspection.json")
     args = parser.parse_args()
     config_path = args.config.resolve()
-    config = json.loads(config_path.read_text(encoding="utf-8"))
+    config = read_config(config_path)
     if config.get("schema_version") != 1:
         raise ValueError("Only inspection config schema_version 1 is supported")
 

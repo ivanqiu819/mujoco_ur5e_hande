@@ -1,13 +1,36 @@
 {
+  "_说明": {
+    "schema_version": "配置格式版本，保持 1。本文件控制普通检测基础场景；布局/实体修改后重建场景并重启。插入场景会覆盖部分布局参数。",
+    "source_scene": "生成检测场景所用的相机场景 XML 路径，相对本文件。",
+    "output_scene": "生成的检测场景 XML 路径，相对本文件。",
+    "remove_example_obstacle": "是否移除基础场景中的示例障碍物。",
+    "camera_validation": "场景检查工具的可见性要求，不控制机器人运动。",
+    "table": "普通检测场景的桌子；插入场景的中心及上表面高度由 insertion.json 覆盖。",
+    "workpiece": "普通检测场景工件；插入场景另设支撑台、位置及孔道碰撞代理。"
+  },
   "schema_version": 1,
   "source_scene": "../scenes/scene_camera.xml",
   "output_scene": "../scenes/scene_inspection.xml",
   "remove_example_obstacle": true,
   "camera_validation": {
+    "_说明": {
+      "require_center_visible": "检查时是否要求工件中心落在相机画面内。",
+      "require_full_workpiece_visible_at_home": "是否要求 Home 时整个工件入画；当前任务关注端口，因此设 false。"
+    },
     "require_center_visible": true,
     "require_full_workpiece_visible_at_home": false
   },
   "table": {
+    "_说明": {
+      "name": "桌子刚体名称；其他代码按约定名称引用，不建议随意修改。",
+      "center_xy_m": "桌面中心的世界 [X,Y]，米。",
+      "top_surface_height_m": "桌面上表面的世界 Z 高度，米。",
+      "top_size_m": "桌板完整尺寸 [X长,Y宽,Z厚]，米。",
+      "leg_size_m": "桌腿完整尺寸 [X,Y,Z高度]，米；高度必须等于桌面上表面高度减桌板厚度。",
+      "leg_inset_m": "桌腿相对于桌面边缘的内缩距离，米。",
+      "top_rgba": "桌面颜色 [红,绿,蓝,透明度]，每项 0～1。",
+      "leg_rgba": "桌腿颜色 [红,绿,蓝,透明度]，每项 0～1。"
+    },
     "name": "inspection_table",
     "center_xy_m": [
       0.35,
@@ -39,6 +62,19 @@
     ]
   },
   "workpiece": {
+    "_说明": {
+      "name": "工件刚体名称；其他模块按约定名称引用，不建议随意修改。",
+      "mesh_file": "assets/meshes/ 下的 STL 文件名；须与 port.json 指向同一工件。",
+      "source_units": "原始网格单位说明；实际缩放由 scale 决定，须与 port.json 的 model.unit 一致。",
+      "scale": "原始网格 XYZ 到米的缩放比例；毫米 STL 为 [0.001,0.001,0.001]。",
+      "center_xy_m": "旋转后工件包围盒中心的世界 [X,Y]，米；插入场景由 insertion.json 覆盖。",
+      "quaternion_world_wxyz": "工件相对世界的姿态，单位四元数 [W,X,Y,Z]；改动须核对水平孔道及生成器约束。",
+      "table_clearance_m": "工件底部到桌面间隙，米；插入场景由 insertion.json 覆盖。",
+      "dynamic": "是否生成可自由运动的工件；当前固定工件场景使用 false。",
+      "mass_kg": "工件质量，千克。",
+      "visual_rgba": "工件颜色 [红,绿,蓝,透明度]，每项 0～1；插入场景另按 port.json 分区着色。",
+      "collision_proxy": "普通检测场景的碰撞代理，当前 bounding_box（整件包围盒）；插入场景由生成器替换为保留孔道的分块代理。"
+    },
     "name": "inspection_workpiece",
     "mesh_file": "inspection_workpiece.stl",
     "source_units": "millimeter",

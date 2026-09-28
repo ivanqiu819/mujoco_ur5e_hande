@@ -10,16 +10,17 @@ import numpy as np
 from ur5e_sim.camera.calibration import ROOT, pose_matrix
 from ur5e_sim.control.kinematics import Pose
 from ur5e_sim.control.limits import cartesian_speed
+from ur5e_sim.config_io import read_config, without_notes
 
 
 def load_settings(path=None):
     path = Path(path or ROOT / 'configs/insertion.json').resolve()
-    settings = json.loads(path.read_text())
+    settings = read_config(path)
     if settings.get('schema_version') != 1:
         raise ValueError('Unsupported insertion configuration')
     for key in ('source_scene', 'output_scene', 'camera_config', 'port_config', 'aruco_config', 'pnp_config'):
         settings[key] = str((path.parent / settings[key]).resolve())
-    camera = json.loads(Path(settings['camera_config']).read_text())
+    camera = read_config(settings['camera_config'])
     settings['render_supersample'] = camera['render_supersample']
     if settings['render_supersample'] not in (1, 2, 3, 4):
         raise ValueError('render_supersample must be 1, 2, 3 or 4')
@@ -51,7 +52,7 @@ def pose_resources(settings, route=None):
     """Load local geometry and only the requested algorithm's settings."""
     from ur5e_sim.vision.core.geometry import load_geometry
     path = Path(settings['port_config'])
-    config = json.loads(path.read_text())
+    config = read_config(path)
     config['model']['path'] = str((path.parent / config['model']['path']).resolve())
     if config['model']['unit'] not in ('mm', 'cm', 'm'):
         raise ValueError('model.unit must be mm, cm or m')
@@ -63,11 +64,11 @@ def pose_resources(settings, route=None):
     if np.any(np.asarray(port['inner_size']) <= 0) or np.any(np.asarray(port['outer_size']) <= port['inner_size']):
         raise ValueError('Port outer dimensions must exceed positive inner dimensions')
     if route in (None, 'aruco'):
-        options = json.loads(Path(settings['aruco_config']).read_text())
+        options = read_config(settings['aruco_config'])
         config['aruco'] = dict(config['marker'], **{k:v for k,v in options.items() if k != 'pose'})
         config['pose'] = options['pose']
     if route == 'pnp':
-        config.update(json.loads(Path(settings['pnp_config']).read_text()))
+        config.update(read_config(settings['pnp_config']))
     return config, load_geometry(config)
 
 
@@ -96,14 +97,14 @@ def scene_signature(settings):
     """Content fingerprint for parameters baked into the generated insertion scene."""
     import hashlib
     # Route and solver controls do not change geometry; physical camera/port/task parameters do.
-    task = {k:v for k,v in settings.items() if k not in (
+    task = {k:v for k,v in without_notes(settings).items() if k not in (
         'source_scene','output_scene','camera_config','port_config','aruco_config','pnp_config',
         'route','render_supersample','detection_timeout_s','collision_samples','settle_s',
         'insert_speed_m_s','cartesian_step_m','preinsert_m','insert_depth_m','lift_m','observation')}
-    port = json.loads(Path(settings['port_config']).read_text())
+    port = read_config(settings['port_config'])
     mesh = (Path(settings['port_config']).parent/port['model']['path']).resolve()
     port['model']['path'] = hashlib.sha256(mesh.read_bytes()).hexdigest()
-    camera = json.loads(Path(settings['camera_config']).read_text())
+    camera = read_config(settings['camera_config'])
     camera.pop('preview_hz', None)
     payload = {'task':task,'port':port,'camera':camera}
     return hashlib.sha256(json.dumps(payload,sort_keys=True).encode()).hexdigest()

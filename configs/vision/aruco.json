@@ -1,7 +1,18 @@
 {
+  "_说明": {
+    "corner_refinement_window_px": "ArUco 角点亚像素精修窗口参数，像素；传给 OpenCV cornerRefinementWinSize，正整数。下一轮检测生效。",
+    "min_marker_side_px": "允许的标记最短边长度，像素；过小拒绝检测，防止像素不足。下一轮检测生效。",
+    "pose": "位姿求解参数；下一轮检测生效，无需重建场景。"
+  },
   "corner_refinement_window_px": 5,
   "min_marker_side_px": 12,
   "pose": {
+    "_说明": {
+      "reprojection_threshold_px": "重投影误差阈值，像素；越小越严格，过大可能接受较差候选。",
+      "ambiguity_margin_px": "候选评分接近最佳值的容差，像素；增大会保留更多竞争候选，多个候选时拒绝插入。",
+      "prior_rotation_weight": "原算法先验模式的旋转评分权重；当前 ArUco 和无先验 PnP 路线均不使用，修改不会改变当前路线结果。",
+      "prior_translation_weight": "原算法先验模式的平移评分权重；当前 ArUco 和无先验 PnP 路线均不使用。"
+    },
     "reprojection_threshold_px": 3.0,
     "ambiguity_margin_px": 0.25,
     "prior_rotation_weight": 0.025,

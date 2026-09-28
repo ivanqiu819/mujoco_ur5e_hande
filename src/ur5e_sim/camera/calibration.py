@@ -7,11 +7,12 @@ are exposed separately as simulator ground truth, not as hardware streams.
 from __future__ import annotations
 
 from dataclasses import dataclass
-import json
 from pathlib import Path
 
 import mujoco
 import numpy as np
+
+from ur5e_sim.config_io import read_config
 
 
 from ur5e_sim.paths import ROOT as ROOT
@@ -50,7 +51,7 @@ class CameraSpec:
 
 
 def load_spec(path=ROOT / "configs/camera.json"):
-    config = json.loads(Path(path).read_text(encoding="utf-8"))
+    config = read_config(path)
     if config.get("schema_version") != 2:
         raise ValueError("camera_config.json must use schema_version 2")
     hardware = config["hardware"]

@@ -11,6 +11,8 @@ import uuid
 
 import mujoco
 import numpy as np
+
+from ur5e_sim.config_io import read_config
 from .calibration import camera_transforms, load_spec
 
 
@@ -21,7 +23,7 @@ def render_worker(scene, config, states, captures, results, commands, shutdown, 
     spec = load_spec(config)
     model = mujoco.MjModel.from_xml_path(scene)
     data = mujoco.MjData(model)
-    scale = json.loads(open(config).read())['render_supersample']
+    scale = read_config(config)['render_supersample']
     preview = mujoco.Renderer(model, height=spec.height, width=spec.width)
     capture = InsertionCamera(model, spec, {'render_supersample': scale})
     window = None

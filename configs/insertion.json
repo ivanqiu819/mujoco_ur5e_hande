@@ -1,4 +1,32 @@
 {
+  "_说明": {
+    "schema_version": "配置格式版本，保持 1。",
+    "source_scene": "插入场景的输入 XML；路径相对本配置文件。",
+    "output_scene": "生成的插入场景 XML；路径相对本配置文件。",
+    "camera_config": "相机配置路径，相对本文件。",
+    "table_center_xy_m": "桌面中心的世界坐标 [X,Y]，单位米；修改后重建场景并重启服务端。",
+    "table_top_z_m": "桌面上表面的世界 Z 高度，米；修改后重建场景并重启。",
+    "workpiece_center_xy_m": "工件包围盒中心的世界 [X,Y]，米；用于布局及名义观察位置。修改后重建场景并重启。",
+    "fixture_height_m": "固定支撑台高度，米；修改后重建场景并重启。",
+    "table_clearance_m": "工件底部与支撑面的间隙，米；修改后重建场景并重启。",
+    "slot_depth_m": "碰撞通道深度，米；必须与 STL 孔壁一致且大于插入深度。修改后重建场景并重启。",
+    "plug_size_m": "插头完整尺寸 [宽X,厚Y,长Z]，米；X 宽度同时作为固定夹距。修改后重建场景并重启。",
+    "plug_tip_tcp_m": "插头尖端在 TCP 局部坐标中的 [X,Y,Z]，米；0.08 表示沿 TCP +Z 伸出 80 mm。修改后重建场景并重启。",
+    "plug_mass_kg": "刚性固定插头的质量，千克；修改后重建场景并重启。",
+    "lift_m": "从 Home 出发时 TCP 沿世界 +Z 抬升的距离，米；下一轮任务生效，仍须通过 IK 和碰撞检查。",
+    "observation": "预设观察机位，相对于名义端口计算；不是视觉检测结果。下一轮任务生效。",
+    "preinsert_m": "对准时插头尖端到孔口的距离，米；沿端口 -Z，退出也回到孔前。下一轮任务生效。",
+    "insert_depth_m": "尖端进入孔口的深度，米；0.01 为 10 mm，必须大于 0 且小于 slot_depth_m。下一轮生效。",
+    "cartesian_step_m": "插入和退出路径的目标点最大间距，米；必须大于 0 且不超过 0.001（1 mm）。下一轮生效。",
+    "insert_speed_m_s": "插入和退出的轨迹速度上限，米/秒；0.015 为 15 mm/s，允许 (0,0.020]。实际速度受分段与到位等待影响；下一轮生效，无需重建。",
+    "collision_samples": "每段运动的碰撞预检采样数，整数 320～5000；更多采样增加计算量。下一轮生效。",
+    "settle_s": "达到位置及速度收敛条件后的稳定等待时间，秒；允许 (0,3]；连续笛卡尔路径的中间点不额外等待此时长。下一轮生效。",
+    "detection_timeout_s": "视觉工作进程最大等待时间，秒，必须大于 0；超时停止任务。下一轮生效。",
+    "port_config": "端口几何与标记安装配置路径，相对本文件。",
+    "aruco_config": "ArUco 检测参数文件路径，相对本文件。",
+    "pnp_config": "PnP 检测参数文件路径，相对本文件。",
+    "route": "默认定位路线：aruco 或 pnp；命令行 --route 可覆盖，下一轮生效。"
+  },
   "schema_version": 1,
   "source_scene": "../scenes/scene_inspection.xml",
   "output_scene": "../scenes/scene_insertion.xml",
@@ -28,6 +56,11 @@
   "plug_mass_kg": 0.02,
   "lift_m": 0.12,
   "observation": {
+    "_说明": {
+      "distance_m": "相机光心到端口中心的距离，米；0.28 为 280 mm，过近可能看不全或不可达。",
+      "elevation_deg": "观察仰角，度；0 为正对孔口，正值从端口上方观察，当前 40°。",
+      "azimuth_deg": "观察方位角，度；0 为正前方，正值将相机移向端口局部 +X（右侧）。"
+    },
     "distance_m": 0.28,
     "elevation_deg": 40.0,
     "azimuth_deg": 0.0

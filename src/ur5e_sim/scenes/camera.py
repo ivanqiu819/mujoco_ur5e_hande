@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import argparse
-import json
 import math
 from pathlib import Path
 import xml.etree.ElementTree as ET
 
 import numpy as np
+
+from ur5e_sim.config_io import read_config
 
 
 from ur5e_sim.paths import ROOT as ROOT
@@ -158,7 +159,7 @@ def main():
     if output.parent != source.parent:
         parser.error("Keep output beside source so relative mesh paths remain valid")
 
-    config = json.loads(config_path.read_text(encoding="utf-8"))
+    config = read_config(config_path)
     validate_config(config)
     tree = ET.parse(source)
     root = tree.getroot()

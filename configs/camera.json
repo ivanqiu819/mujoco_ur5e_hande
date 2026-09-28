@@ -1,8 +1,38 @@
 {
+  "_说明": {
+    "schema_version": "配置格式版本，保持 2。相机实体、内参及成像配置修改后重建场景并重启服务端；仅改说明无需重建。",
+    "camera_name": "MuJoCo 中的相机名称，运行时按此名字寻找相机。",
+    "parent_body": "相机支架挂载的机器人刚体名称。",
+    "hardware": "相机及镜头的名义硬件资料；部分尺寸和质量用于生成简化机械模型。",
+    "output_profile": "实际输出分辨率及对应内参；修改尺寸时必须一起核对内参。",
+    "simulation_ground_truth_depth": "仅供仿真评估的深度输出，不参与 ArUco/PnP 识别，不代表真实相机能力。",
+    "preview_hz": "RGB 预览目标刷新率，Hz；实际帧率受 GUI 和硬件影响。修改后重启服务端，无需仅因此重建场景。",
+    "mount": "相机支架在 parent_body 坐标系中的安装与朝向定义。",
+    "optical_frame": "针孔光学坐标相对支架的安装关系；MuJoCo 相机看向局部 -Z，运行时转换为 OpenCV +Z 向前。",
+    "mechanical_model": "简化相机、镜头及支架的机械外观参数。",
+    "render_supersample": "检测图像超采样倍率，只允许 1、2、3、4；先按宽高各乘此倍率渲染再缩小，越大越耗时。实时预览仍使用原输出分辨率。"
+  },
   "schema_version": 2,
   "camera_name": "ee_camera",
   "parent_body": "wrist_3_link",
   "hardware": {
+    "_说明": {
+      "camera_model": "相机型号，资料说明。",
+      "sensor_model": "传感器型号及快门类型，资料说明。",
+      "native_resolution": "传感器原生分辨率 [宽,高]，像素；不是最终渲染分辨率。",
+      "pixel_size_um": "像元尺寸 [横向,纵向]，微米；资料值，修改不会自动重新标定内参。",
+      "sensor_size_m": "传感器物理尺寸 [宽,高]，米；与分辨率、焦距和内参保持一致。",
+      "camera_body_size_m": "相机机身完整尺寸 [X,Y,Z]，米。",
+      "camera_mass_kg": "相机机身质量，千克。",
+      "camera_max_fps": "硬件标称最高帧率，帧/秒；不控制预览刷新率。",
+      "real_depth_stream": "真实相机是否输出深度；当前 RGB 相机为 false，不应改成 true 来冒充硬件深度。",
+      "lens_model": "镜头型号，资料说明。",
+      "lens_focal_length_m": "镜头标称焦距，米；0.016 为 16 mm，修改时须同步核对内参。",
+      "lens_size_m": "简化镜头机械外形尺寸，米。",
+      "lens_mass_kg": "镜头质量，千克。",
+      "lens_min_working_distance_m": "镜头标称最小工作距离，米；资料值，仿真不会因此自动模拟失焦。",
+      "lens_max_distortion_percent": "镜头资料中的畸变百分比，负值表示桶形方向；不是 OpenCV 畸变系数，当前检测按无畸变针孔模型处理。"
+    },
     "camera_model": "Teledyne FLIR Blackfly S BFS-U3-51S5C-C",
     "sensor_model": "Sony IMX250 color global shutter",
     "native_resolution": [
@@ -28,6 +58,10 @@
     "lens_model": "Edmund Optics TECHSPEC 16mm C Series #59-870",
     "lens_focal_length_m": 0.016,
     "lens_size_m": {
+      "_说明": {
+        "diameter": "镜头外径，米。",
+        "length": "镜头轴向长度，米。"
+      },
       "diameter": 0.033,
       "length": 0.0405
     },
@@ -36,6 +70,14 @@
     "lens_max_distortion_percent": -0.77
   },
   "output_profile": {
+    "_说明": {
+      "mode": "当前模式 full_sensor_software_resize：全传感器图像缩放的名义配置，不是任意裁剪模式开关。",
+      "width": "RGB 输出宽度，像素，当前 1280。",
+      "height": "RGB 输出高度，像素，当前 1072。",
+      "source_roi_xywh": "原始传感器区域 [左上X,左上Y,宽,高]，像素；记录全幅缩放关系，不自动实现任意 ROI 裁剪。",
+      "resize_scale_xy": "横纵缩放比例 [输出宽/原始宽,输出高/原始高]；须与分辨率一致。",
+      "intrinsics_nominal": "实际渲染及定位使用的内参；焦距和主点均以输出图像像素为单位。"
+    },
     "mode": "full_sensor_software_resize",
     "width": 1280,
     "height": 1072,
@@ -50,6 +92,13 @@
       0.5234375
     ],
     "intrinsics_nominal": {
+      "_说明": {
+        "fx": "水平方向等效焦距，像素；不是米或毫米。",
+        "fy": "垂直方向等效焦距，像素。",
+        "cx": "主点横坐标，像素，以图像左上角为原点，X 向右。",
+        "cy": "主点纵坐标，像素，以图像左上角为原点，Y 向下。",
+        "source": "内参来源说明：目前来自焦距和像元尺寸的估计，实机应替换为标定结果。"
+      },
       "fx": 2424.9313251870794,
       "fy": 2427.536231884058,
       "cx": 639.5,
@@ -58,6 +107,12 @@
     }
   },
   "simulation_ground_truth_depth": {
+    "_说明": {
+      "enabled": "是否允许评估接口输出仿真深度。",
+      "min_m": "有效深度下限，米；更近像素置为无效。",
+      "max_m": "有效深度上限，米；更远像素置为无效。",
+      "noise_std_m": "评估深度高斯噪声标准差，米；0 为不添加噪声，不影响 RGB。"
+    },
     "enabled": true,
     "min_m": 0.05,
     "max_m": 1.0,
@@ -65,6 +120,12 @@
   },
   "preview_hz": 15.0,
   "mount": {
+    "_说明": {
+      "position_parent_m": "支架原点在父刚体坐标系中的 [X,Y,Z]，米。",
+      "look_at_parent_m": "用于定义朝向的注视点，在父刚体坐标系中的 [X,Y,Z]，米。",
+      "up_hint_parent": "父刚体坐标系中的向上参考向量 [X,Y,Z]，无单位；用于确定相机绕视线的转角。",
+      "note": "安装说明：当前为简化侧装模型，真实设备需支架 CAD 与手眼标定。"
+    },
     "position_parent_m": [
       0.075,
       0.0,
@@ -83,6 +144,11 @@
     "note": "Collision-free side-mount placeholder; replace with bracket CAD and measured hand-eye transform"
   },
   "optical_frame": {
+    "_说明": {
+      "position_mount_m": "光学原点在支架局部坐标系中的 [X,Y,Z]，米。",
+      "quaternion_mount_wxyz": "光学坐标相对支架的旋转，单位四元数 [W,X,Y,Z]；[1,0,0,0] 为无旋转。",
+      "origin_note": "光学原点说明：当前针孔略位于镜头模型前方以避免自身遮挡，实机需标定。"
+    },
     "position_mount_m": [
       0.0,
       0.0,
@@ -97,6 +163,13 @@
     "origin_note": "Simulation pinhole is 1.08 mm ahead of the modeled lens front to prevent self-occlusion; replace with calibrated intrinsics and measured hand-eye extrinsics"
   },
   "mechanical_model": {
+    "_说明": {
+      "lens_center_z_m": "镜头几何中心在支架局部 Z 轴的位置，米。",
+      "camera_body_center_z_m": "机身几何中心在支架局部 Z 轴的位置，米。",
+      "bracket_start_parent_m": "支架起点在父刚体坐标系中的 [X,Y,Z]，米。",
+      "bracket_radius_m": "简化圆柱支架半径，米。",
+      "camera_rgba": "机身颜色 [红,绿,蓝,透明度]，每项 0～1，透明度 1 为不透明。"
+    },
     "lens_center_z_m": -0.00417,
     "camera_body_center_z_m": 0.03108,
     "bracket_start_parent_m": [

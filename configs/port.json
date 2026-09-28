@@ -1,9 +1,27 @@
 {
+  "_说明": {
+    "model": "工件 CAD 来源；本文件中的几何、标记和材质变更后重建场景并重启服务端。",
+    "port": "端口定义；中心及特征点使用 STL 原始坐标与 model.unit，算法内部转换为米。局部轴 X 向右、Y 向下、Z 向孔内。",
+    "render": "材质分区供 MuJoCo 场景生成使用；其余软件渲染参数属于原算法渲染器，不直接控制当前 MuJoCo RGB。",
+    "marker": "ArUco 的真实尺寸及相对端口安装关系，渲染和定位共用；修改后重建场景并重启。"
+  },
   "model": {
+    "_说明": {
+      "path": "STL 文件路径，相对本配置文件。",
+      "unit": "STL 数值单位：mm、cm 或 m；STL 本身不记录单位。"
+    },
     "path": "../assets/meshes/inspection_workpiece.stl",
     "unit": "mm"
   },
   "port": {
+    "_说明": {
+      "center": "孔口中心在 STL 原坐标中的 [X,Y,Z]，单位由 model.unit 决定，当前为毫米。",
+      "normal": "孔口朝外的方向向量，使用 STL 坐标轴，无单位；与最终端口 +Z 向孔内的方向相反。",
+      "up": "端口朝上的参考方向向量，使用 STL 坐标轴，无单位；不能与 normal 平行。",
+      "inner_size": "内孔口 [宽,高]，单位同 model.unit；必须与 STL 实际孔口一致。",
+      "outer_size": "孔口外框 [宽,高]，单位同 model.unit；两项均须大于 inner_size 对应项。",
+      "top_rear_points": "顶面后侧特征点 [左后点,右后点]，每点为 STL 原坐标 [X,Y,Z]，单位同 model.unit；PnP 用于非共面约束，设为空会失去该约束。"
+    },
     "center": [
       80,
       20,
@@ -41,6 +59,15 @@
     ]
   },
   "render": {
+    "_说明": {
+      "supersample": "原算法软件渲染器的超采样倍率；当前 MuJoCo 检测成像请改 camera.json 的 render_supersample。",
+      "background_gray": "原算法软件渲染背景灰度，0～255；不是 MuJoCo 背景开关。",
+      "default_gray": "未匹配材质分区的默认灰度，0～255，供工件材质生成使用。",
+      "ambient": "原算法软件渲染环境光强度；不直接控制 MuJoCo 灯光。",
+      "light_direction_camera": "原算法软件渲染的相机坐标系光照方向 [X,Y,Z]；不直接控制 MuJoCo 灯光。",
+      "near_clip_mm": "原算法软件渲染近裁剪距离，毫米；不是 MuJoCo 相机的裁剪配置。",
+      "material_regions": "工件表面的材质分区；数组中每项使用 STL 原坐标的范围选择三角面，重叠时后面的分区覆盖前面的。"
+    },
     "supersample": 3,
     "background_gray": 245,
     "default_gray": 130,
@@ -53,6 +80,12 @@
     "near_clip_mm": 0.5,
     "material_regions": [
       {
+        "_说明": {
+          "name": "材质分区名称，用于辨认外壳、前唇或孔腔。",
+          "min": "范围下界 [X,Y,Z]，STL 原坐标，单位同 model.unit。",
+          "max": "范围上界 [X,Y,Z]，STL 原坐标，单位同 model.unit。",
+          "gray": "该分区灰度，0～255；0 黑、255 白。保持前唇亮、孔腔暗有利于 PnP 边缘检测。"
+        },
         "name": "socket_shell",
         "min": [
           70,
@@ -67,6 +100,12 @@
         "gray": 170
       },
       {
+        "_说明": {
+          "name": "材质分区名称，用于辨认外壳、前唇或孔腔。",
+          "min": "范围下界 [X,Y,Z]，STL 原坐标，单位同 model.unit。",
+          "max": "范围上界 [X,Y,Z]，STL 原坐标，单位同 model.unit。",
+          "gray": "该分区灰度，0～255；0 黑、255 白。保持前唇亮、孔腔暗有利于 PnP 边缘检测。"
+        },
         "name": "socket_front_rim",
         "min": [
           70,
@@ -81,6 +120,12 @@
         "gray": 240
       },
       {
+        "_说明": {
+          "name": "材质分区名称，用于辨认外壳、前唇或孔腔。",
+          "min": "范围下界 [X,Y,Z]，STL 原坐标，单位同 model.unit。",
+          "max": "范围上界 [X,Y,Z]，STL 原坐标，单位同 model.unit。",
+          "gray": "该分区灰度，0～255；0 黑、255 白。保持前唇亮、孔腔暗有利于 PnP 边缘检测。"
+        },
         "name": "socket_cavity",
         "min": [
           71,
@@ -97,6 +142,14 @@
     ]
   },
   "marker": {
+    "_说明": {
+      "dictionary": "OpenCV ArUco 字典名称，当前 DICT_4X4_50。",
+      "marker_id": "目标标记 ID，当前 0，须属于选定字典；多个同 ID 目标会被当作歧义拒绝。",
+      "marker_size_mm": "标记黑色外框的边长，毫米，不含白边；直接影响测距比例。",
+      "white_margin_mm": "黑框四周每侧的白边宽度，毫米。",
+      "center_port_mm": "标记中心在端口局部坐标中的 [X,Y,Z]，固定单位毫米；X 右、Y 下、Z 向孔内。",
+      "rotation_port_deg": "标记坐标相对端口坐标的旋转角 [绕X,绕Y,绕Z]，度；组合矩阵 Rz × Ry × Rx。"
+    },
     "dictionary": "DICT_4X4_50",
     "marker_id": 0,
     "marker_size_mm": 14.0,

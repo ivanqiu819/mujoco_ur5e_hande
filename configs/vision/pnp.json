@@ -1,5 +1,18 @@
 {
+  "_说明": {
+    "detection": "全图矩形端口检测参数；下一轮检测生效，无需重建。",
+    "pose": "位姿求解参数；下一轮检测生效，无需重建场景。"
+  },
   "detection": {
+    "_说明": {
+      "roi_margin_px": "原先验检测器的 ROI 外扩像素数；当前无先验 PnP 使用全图搜索，此参数不生效。",
+      "search_band_px": "顶面后侧边缘的搜索带宽参数，像素；围绕图像候选位姿搜索，过大可能引入错误边缘。",
+      "canny_low": "Canny 边缘检测低阈值，灰度梯度阈值；降低会检出更多弱边缘及噪声。",
+      "canny_high": "Canny 边缘检测高阈值；应高于低阈值。",
+      "min_port_width_px": "最小端口宽度参考值，像素；当前与 min_port_height_px 的乘积 ×0.3 形成候选四边形面积下限，不是逐边宽度硬限制。",
+      "min_port_height_px": "最小端口高度参考值，像素；与宽度共同控制候选面积下限。",
+      "max_corner_shift_px": "原先验检测器允许的角点偏移量，像素；当前无先验 PnP 不使用此参数。"
+    },
     "roi_margin_px": 35,
     "search_band_px": 12,
     "canny_low": 20,
@@ -9,6 +22,12 @@
     "max_corner_shift_px": 25
   },
   "pose": {
+    "_说明": {
+      "reprojection_threshold_px": "重投影误差阈值，像素；越小越严格，过大可能接受较差候选。",
+      "ambiguity_margin_px": "候选评分接近最佳值的容差，像素；增大会保留更多竞争候选，多个候选时拒绝插入。",
+      "prior_rotation_weight": "原算法先验模式的旋转评分权重；当前 ArUco 和无先验 PnP 路线均不使用，修改不会改变当前路线结果。",
+      "prior_translation_weight": "原算法先验模式的平移评分权重；当前 ArUco 和无先验 PnP 路线均不使用。"
+    },
     "reprojection_threshold_px": 3.0,
     "ambiguity_margin_px": 0.25,
     "prior_rotation_weight": 0.025,
