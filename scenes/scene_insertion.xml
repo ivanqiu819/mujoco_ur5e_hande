@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <mujoco model="UR5e pre-held plug horizontal insertion">
   <compiler angle="radian" eulerseq="xyz" meshdir="../assets/meshes" autolimits="true" inertiafromgeom="false" fusestatic="false" />
-  <option timestep="0.002" integrator="implicitfast" gravity="0 0 -9.81">
+  <option timestep="0.002" integrator="implicitfast" gravity="0 0 -9.81" noslip_iterations="10">
     <flag contact="enable" />
   </option>
   <size njmax="2000" nconmax="500" />
@@ -764,6 +764,9 @@
                       <geom class="collision" name="left_finger_part_02000" type="mesh" mesh="left_finger_part_02000" />
                       <geom class="collision" name="left_finger_part_02001" type="mesh" mesh="left_finger_part_02001" />
                       <geom class="collision" name="left_finger_part_103110" type="mesh" mesh="left_finger_part_103110" />
+                      <body name="xense_mount_left" pos="0 0 0">
+                        <geom name="xense_gel_left" type="box" pos="-0.01124000026 0.053 0.01077586523" size="0.0097 0.0154 0.003" rgba="0.2 0.75 0.35 0.85" contype="4" conaffinity="7" group="1" friction="2.5 0.05 0.005" condim="4" solref="0.008 0.9" solimp="0.85 0.95 0.003" priority="1" />
+                      </body>
                     </body>
                     <body name="right_gripper" pos="-0.0137542808 0.0338190539 -0.0771737225" quat="0.7071067800533717 -0.707106782319722 3.090861775268274e-08 -3.0908617653617423e-08" gravcomp="1">
                       <inertial pos="0.006 0.031 -0.022" mass="0.05" diaginertia="3e-05 2e-05 2e-05" />
@@ -972,6 +975,9 @@
                       <geom class="collision" name="right_finger_part_168101" type="mesh" mesh="right_finger_part_168101" />
                       <geom class="collision" name="right_finger_part_168111" type="mesh" mesh="right_finger_part_168111" />
                       <geom class="collision" name="right_finger_part_68111" type="mesh" mesh="right_finger_part_68111" />
+                      <body name="xense_mount_right" pos="0 0 0">
+                        <geom name="xense_gel_right" type="box" pos="0.0112399999 0.053 -0.01077586431" size="0.0097 0.0154 0.003" rgba="0.2 0.75 0.35 0.85" contype="4" conaffinity="7" group="1" friction="2.5 0.05 0.005" condim="4" solref="0.008 0.9" solimp="0.85 0.95 0.003" priority="1" />
+                      </body>
                     </body>
                   </body>
                   <geom name="ee_camera_bracket_visual" type="capsule" class="visual" fromto="0.035 0 0.012 0.075 0 0.055" size="0.006" material="ee_camera_bracket" />
@@ -989,11 +995,6 @@
                       <camera name="ee_camera" mode="fixed" resolution="1280 1072" focalpixel="2424.93132519 2427.53623188" principalpixel="0 0" sensorsize="0.0084456 0.0070656" />
                     </body>
                   </body>
-                  <body name="held_plug" pos="0.002504158005067814 -0.001958227572379068 0.1361764956035346" quat="0.7071067254655244 2.7185828886048254e-05 -2.8880142212134922e-05 0.7071068357951941" gravcomp="1">
-                    <inertial pos="0 0 0.03" mass="0.02" diaginertia="1.66933333333e-05 1.70933333333e-05 4.53333333333e-07" />
-                    <geom name="held_plug_collision" type="box" pos="0 0 0.03" size="0.008 0.002 0.05" rgba=".15 .3 .75 1" />
-                    <site name="plug_tip" pos="0 0 0.08" size=".001" group="4" rgba="0 0 0 0" />
-                  </body>
                 </body>
               </body>
             </body>
@@ -1010,11 +1011,11 @@
     </body>
     <body name="inspection_workpiece" pos="0.215 0.3275 0.2805" quat="0.707106781187 0.707106781187 0 0">
       <site name="workpiece_frame" type="sphere" pos="0.08 0.0120000009537 0.0575" size="0.004" group="4" rgba="0.15 0.95 0.25 0.75" />
-      <geom class="collision" name="socket_wall_0" type="box" pos="0.0355 0.0120000009537 0.0575" size="0.0355 0.0120000009537 0.0575" />
-      <geom class="collision" name="socket_wall_1" type="box" pos="0.1245 0.0120000009537 0.0575" size="0.0355 0.0120000009537 0.0575" />
-      <geom class="collision" name="socket_wall_2" type="box" pos="0.08 0.0085 0.0575" size="0.009 0.0085 0.0575" />
-      <geom class="collision" name="socket_wall_3" type="box" pos="0.08 0.0235000009537 0.0575" size="0.009 0.000500000953674 0.0575" />
-      <geom class="collision" name="socket_wall_4" type="box" pos="0.08 0.02 0.0475" size="0.009 0.003 0.0475" />
+      <geom class="collision" name="socket_wall_0" type="box" pos="0.0355 0.0120000009537 0.0575" size="0.0355 0.0120000009537 0.0575" contype="8" conaffinity="2" friction="1.0 0.02 0.002" condim="4" solref="0.01 0.8" solimp="0.85 0.95 0.001" priority="0" />
+      <geom class="collision" name="socket_wall_1" type="box" pos="0.1245 0.0120000009537 0.0575" size="0.0355 0.0120000009537 0.0575" contype="8" conaffinity="2" friction="1.0 0.02 0.002" condim="4" solref="0.01 0.8" solimp="0.85 0.95 0.001" priority="0" />
+      <geom class="collision" name="socket_wall_2" type="box" pos="0.08 0.0085 0.0575" size="0.009 0.0085 0.0575" contype="8" conaffinity="2" friction="1.0 0.02 0.002" condim="4" solref="0.01 0.8" solimp="0.85 0.95 0.001" priority="0" />
+      <geom class="collision" name="socket_wall_3" type="box" pos="0.08 0.0235000009537 0.0575" size="0.009 0.000500000953674 0.0575" contype="8" conaffinity="2" friction="1.0 0.02 0.002" condim="4" solref="0.01 0.8" solimp="0.85 0.95 0.001" priority="0" />
+      <geom class="collision" name="socket_wall_4" type="box" pos="0.08 0.02 0.0475" size="0.009 0.003 0.0475" contype="8" conaffinity="2" friction="1.0 0.02 0.002" condim="4" solref="0.01 0.8" solimp="0.85 0.95 0.001" priority="0" />
       <geom class="visual" name="insertion_surface_48" mesh="insertion_surface_48" rgba="0.188235294118 0.188235294118 0.188235294118 1" />
       <geom class="visual" name="insertion_surface_130" mesh="insertion_surface_130" rgba="0.509803921569 0.509803921569 0.509803921569 1" />
       <geom class="visual" name="insertion_surface_170" mesh="insertion_surface_170" rgba="0.666666666667 0.666666666667 0.666666666667 1" />
@@ -1088,6 +1089,12 @@
       </body>
     </body>
     <geom name="insertion_fixture" type="box" pos="0.295 0.27 0.25" size="0.08 0.0575 0.03" rgba=".32 .34 .36 1" />
+    <body name="held_plug" pos="0.293891949774 0.11930459269 0.351549830448" quat="-0.000143917121696 5.62739132878e-05 0.999999988059 -1.60460708977e-06">
+      <freejoint name="plug_free" />
+      <inertial pos="0 0 0.03" mass="0.02" diaginertia="1.67170833333e-05 1.71770833333e-05 5.60833333333e-07" />
+      <geom name="held_plug_collision" type="box" pos="0 0 0.03" size="0.00875 0.00275 0.05" rgba=".15 .3 .75 1" contype="2" conaffinity="13" friction="0.5 0.01 0.001" condim="4" solref="0.005 1" solimp="0.9 0.95 0.001" priority="0" />
+      <site name="plug_tip" pos="0 0 0.08" size=".001" group="4" rgba="0 0 0 0" />
+    </body>
   </worldbody>
   <contact>
     <exclude body1="base_link" body2="shoulder_link" />
@@ -1099,8 +1106,7 @@
     <exclude body1="wrist_3_link" body2="hande_base_link" />
     <exclude body1="hande_base_link" body2="left_gripper" />
     <exclude body1="hande_base_link" body2="right_gripper" />
-    <exclude body1="held_plug" body2="left_gripper" />
-    <exclude body1="held_plug" body2="right_gripper" />
+    <exclude body1="left_gripper" body2="right_gripper" />
   </contact>
   <equality>
     <joint name="finger_sync" joint1="Slider_1" joint2="Slider_2" polycoef="0 1 0 0 0" />
@@ -1115,7 +1121,7 @@
     <position name="gripper" joint="Slider_1" kp="2500" kv="30" forcelimited="true" forcerange="-200 200" ctrlrange="-0.025 0.025" />
   </actuator>
   <keyframe>
-    <key name="home" qpos="-0.000112608628115 -1.57054781914 1.57089555264 -1.57077682018 -1.57080209255 -4.7790759794e-08 -0.0169968537 -0.0169968537" ctrl="-0.000112608628115 -1.57054781914 1.57089555264 -1.57077682018 -1.57080209255 -4.7790759794e-08 -0.0169968537" />
+    <key name="home" qpos="-0.000112608628115 -1.57054781914 1.57089555264 -1.57077682018 -1.57080209255 -4.7790759794e-08 -0.0158793248654 -0.0143917882305 0.293156682455 0.119302898616 0.351522887078 -6.00849577451e-05 5.72823043101e-05 0.999999996553 -1.59208595202e-06" ctrl="-0.000112608628115 -1.57054781914 1.57089555264 -1.57077682018 -1.57080209255 -4.7790759794e-08 -0.0175593537" />
   </keyframe>
   <custom>
     <numeric name="gripper_closed_q" data="-0.0249968537" />
@@ -1140,7 +1146,6 @@
     <numeric name="inspection_workpiece_world_aabb_m" data="0.215 0.0625 0.2205 0.375 0.1775 0.244500001907" />
     <text name="inspection_scene_config" data="table_plus_supplied_stl_schema_v1" />
     <numeric name="insertion_nominal_port" data="1 0 0 0.295 0 -2.22044604925e-16 1 0.2125 0 -1 -2.22044604925e-16 0.3005 0 0 0 1" />
-    <numeric name="insertion_fixed_gap" data="0.016" />
-    <text name="insertion_config_sha256" data="8fe5bfd32c103c68c0d62e62995c21834426eac82f5a1159dde38aed6224d901" />
+    <text name="insertion_config_sha256" data="f44af2273f6e3a754ed167c519158ddb23aa7242e55a4bd329c4aecf24c5c15b" />
   </custom>
 </mujoco>

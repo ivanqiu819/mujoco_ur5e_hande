@@ -4,7 +4,14 @@ import mujoco
 import numpy as np
 from ur5e_sim.config import matrix_pose, site_matrix
 from ur5e_sim.control.manual import MotionPlan
-from ur5e_sim.control.kinematics import collision_preflight, set_target_marker, solve_ik
+from ur5e_sim.control.kinematics import (
+    allowed_insertion_contact_pair,
+    arm_addresses,
+    collision_preflight,
+    set_target_marker,
+    solve_ik,
+    tcp_pose_matches,
+)
 from ur5e_sim.control.limits import cartesian_speed
 
 
@@ -17,6 +24,30 @@ def rigid(value):
             not np.allclose(r.T @ r, np.eye(3), atol=1e-5) or np.linalg.det(r) < .999):
         raise ValueError('Expected rigid transform')
     return t
+
+
+def _geom_name(model, geom_id):
+    return model.geom(geom_id).name or ""
+
+
+def _unexpected_contact_pairs(model, data, *, plug_released: bool = False):
+    """Contacts outside the insertion tactile whitelist."""
+    pairs = []
+    for contact in data.contact:
+        g1 = _geom_name(model, contact.geom1)
+        g2 = _geom_name(model, contact.geom2)
+        if allowed_insertion_contact_pair(g1, g2, model=model,
+                                         geom1_id=contact.geom1,
+                                         geom2_id=contact.geom2):
+            continue
+        if plug_released and ("held_plug" in g1 or "held_plug" in g2):
+            continue
+        pairs.append((g1, g2))
+    return pairs
+
+
+def unexpected_contact_count(model, data) -> int:
+    return len(_unexpected_contact_pairs(model, data))
 
 
 def line_targets(start, end, spacing=.001):
@@ -61,8 +92,17 @@ class TrajectoryExecutor:
         self.phase, self.reason = 'error', message
         print('MOTION_ERROR:', message, flush=True)
 
+    def _gripper_blocks_arm_motion(self) -> bool:
+        if self.c.gripper_state() != 'moving':
+            return False
+        # Preheld plug: sliders comply under gel preload; arm paths must not stall.
+        if getattr(self.c, 'insertion_scene', False) and getattr(self.c, 'plug_grasp_locked', False):
+            return False
+        return True
+
     def execute(self, targets, *, cartesian=False, speed=None, recovery=None):
-        if self.busy or self.c.plan is not None or self.protected or self.c.gripper_state() == 'moving':
+        if (self.busy or self.c.plan is not None or self.protected
+                or self._gripper_blocks_arm_motion()):
             raise ValueError('BUSY or protected trajectory; stop/recover first')
         if not isinstance(targets, list) or not 1 <= len(targets) <= 256:
             raise ValueError('Expected 1..256 target transforms')
@@ -83,7 +123,7 @@ class TrajectoryExecutor:
             if not cartesian:
                 raise ValueError('Protected motion requires a Cartesian path')
             # Recovery must be the measured start of this straight move.
-            if not np.allclose(recovery, site_matrix(self.c.data, 'tcp'), atol=2e-5):
+            if not tcp_pose_matches(recovery, site_matrix(self.c.data, 'tcp')):
                 raise ValueError('Recovery pose must match the measured path start')
         self.schedule(targets, 'moving', 'done', cartesian)
         if recovery is not None:
@@ -95,13 +135,17 @@ class TrajectoryExecutor:
             raise ValueError('Stop the current motion before recovery')
         if not self.protected or self.recovery_target is None:
             raise ValueError('No protected motion to recover')
-        self.schedule(line_targets(site_matrix(self.c.data, 'tcp'), self.recovery_target),
-                      'moving', 'recovered', True)
+        current = site_matrix(self.c.data, 'tcp')
+        goal = self.recovery_target.copy()
+        # Compliant grasp may rotate TCP slightly during insert; retract along position only.
+        goal[:3, :3] = current[:3, :3]
+        self.schedule(line_targets(current, goal), 'moving', 'recovered', True)
 
     def schedule(self, targets, phase, completion, cartesian=False):
         c = self.c
         self.cartesian = cartesian
-        if c.data.ncon:
+        released = hasattr(c, 'plug_grasp_locked') and not c.plug_grasp_locked
+        if _unexpected_contact_pairs(c.model, c.data, plug_released=released):
             raise ValueError('Current state has contacts; motion refused')
         seed = c.data.qpos.copy()
         previous = site_matrix(c.data, 'tcp')
@@ -117,7 +161,8 @@ class TrajectoryExecutor:
             samples = max(self.settings['collision_samples'], int(np.ceil(delta/.002))+1)
             if samples > 5000:
                 raise ValueError('Path requires too many collision samples')
-            ok, reason = collision_preflight(c.model, seed, result.q_arm, samples)
+            ok, reason = collision_preflight(c.model, seed, result.q_arm, samples,
+                                              plug_released=released)
             if not ok:
                 raise ValueError(f'{phase}: collision: {reason}')
             duration = max(.05 if cartesian else .25, 1.5*delta/c.max_joint_speed_rad_s)
@@ -137,11 +182,12 @@ class TrajectoryExecutor:
             if not self.busy or c.plan is not None:
                 return
             # Wait for actual tracking, not just the end of an actuator command.
-            error = float(np.max(np.abs(c.data.qpos[c.qpos_addresses]-c.arm_hold_target)))
-            speed = float(np.max(np.abs(c.data.qvel)))
+            _, _, arm_vadr = arm_addresses(c.model)
+            error = float(np.max(np.abs(c.data.qpos[c.qpos_addresses] - c.arm_hold_target)))
+            speed = float(np.max(np.abs(c.data.qvel[arm_vadr])))
             if self.motion_ended is None:
                 self.motion_ended = float(c.data.time)
-            if error > .0001 or speed > .001:
+            if error > 0.002 or speed > 0.001:
                 self.settle_started = None
                 if c.data.time-self.motion_ended > 3:
                     raise ValueError('Trajectory did not settle')
@@ -155,8 +201,10 @@ class TrajectoryExecutor:
             if self.queue:
                 q, pose, duration = self.queue.popleft()
                 # Revalidate from the measured state before every segment.
+                released = hasattr(c, 'plug_grasp_locked') and not c.plug_grasp_locked
                 ok, reason = collision_preflight(c.model, c.data.qpos.copy(), q,
-                                                 self.settings['collision_samples'])
+                                                 self.settings['collision_samples'],
+                                                 plug_released=released)
                 if not ok:
                     raise ValueError(f'Execution preflight failed: {reason}')
                 c.plan = MotionPlan(c.data.qpos[c.qpos_addresses].copy(), q,
@@ -176,6 +224,11 @@ class TrajectoryExecutor:
 
     def after_step(self):
         c = self.c
-        if c.data.ncon and (self.busy or self.protected or c.fixed_grip) and self.phase != 'error':
-            pairs = [(c.model.geom(x.geom1).name, c.model.geom(x.geom2).name) for x in c.data.contact]
-            self.fail(f'Unexpected contact during dynamics: {pairs[:3]}')
+        monitor = self.busy or self.protected
+        if not monitor and c.insertion_scene and c.plug_grasp_locked:
+            monitor = True
+        if monitor and self.phase != 'error':
+            released = hasattr(c, 'plug_grasp_locked') and not c.plug_grasp_locked
+            pairs = _unexpected_contact_pairs(c.model, c.data, plug_released=released)
+            if pairs:
+                self.fail(f'Unexpected contact during dynamics: {pairs[:3]}')

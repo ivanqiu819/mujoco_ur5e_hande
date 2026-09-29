@@ -1,0 +1,28 @@
+# Contact/friction parameters for high-fidelity insertion (MuJoCo geom attrs).
+schema_version: 1
+plug:
+  friction: "0.5 0.01 0.001"
+  condim: 4
+  solref: "0.005 1"
+  solimp: "0.9 0.95 0.001"
+  priority: 0
+gel:
+  friction: "2.5 0.05 0.005"
+  condim: 4
+  solref: "0.008 0.9"
+  solimp: "0.85 0.95 0.003"
+  priority: 1
+finger_collision:
+  friction: "0.8 0.02 0.002"
+  condim: 4
+  solref: "0.005 1"
+  solimp: "0.9 0.95 0.001"
+  priority: 0
+socket_wall:
+  friction: "1.0 0.02 0.002"
+  condim: 4
+  solref: "0.01 0.8"
+  solimp: "0.85 0.95 0.001"
+  priority: 0
+home_plug_settle_steps: 800
+noslip_iterations: 10

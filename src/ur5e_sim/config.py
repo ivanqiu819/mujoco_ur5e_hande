@@ -44,6 +44,27 @@ def load_settings(path=None):
         raise ValueError('collision_samples must be an integer in 320..5000')
     if settings['settle_s'] > 3:
         raise ValueError('settle_s must be <= 3 s')
+    settings.setdefault('tactile_align_enabled', False)
+    if settings['tactile_align_enabled']:
+        for key in (
+            'tactile_probe_m',
+            'tactile_align_max_mm',
+            'tactile_align_gain_mm_per_mm',
+            'tactile_align_delta_threshold_mm',
+        ):
+            if not np.isfinite(settings[key]) or settings[key] <= 0:
+                raise ValueError(f'{key} must be finite and positive when tactile_align_enabled')
+        if settings['tactile_probe_m'] > settings['preinsert_m']:
+            raise ValueError('tactile_probe_m must not exceed preinsert_m')
+        iters = settings.get('tactile_align_max_iters', 10)
+        if type(iters) is not int or not 1 <= iters <= 50:
+            raise ValueError('tactile_align_max_iters must be an integer in 1..50')
+        settings['tactile_align_max_iters'] = iters
+    settings.setdefault('align_bias_port_m', [0.0, 0.0, 0.0])
+    bias = np.asarray(settings['align_bias_port_m'], dtype=float).ravel()
+    if bias.shape != (3,) or not np.isfinite(bias).all():
+        raise ValueError('align_bias_port_m must be three finite numbers (port frame, metres)')
+    settings['align_bias_port_m'] = bias.tolist()
     return settings
 
 
@@ -99,7 +120,17 @@ def scene_signature(settings):
     task = {k:v for k,v in settings.items() if k not in (
         'source_scene','output_scene','camera_config','port_config','aruco_config','pnp_config',
         'route','render_supersample','detection_timeout_s','collision_samples','settle_s',
-        'insert_speed_m_s','cartesian_step_m','preinsert_m','insert_depth_m','lift_m','observation')}
+        'insert_speed_m_s','cartesian_step_m','preinsert_m','insert_depth_m','lift_m','observation',
+        'release_gripper_after_insert',
+        'tactile_align_enabled','tactile_probe_m','tactile_align_max_mm',
+        'tactile_align_max_iters','tactile_align_gain_mm_per_mm',
+        'tactile_align_delta_threshold_mm','align_bias_port_m',
+        'admittance_enabled','admittance_step_m','admittance_settle_s',
+        'admittance_gain_mm_per_mm','admittance_max_correction_mm',
+        'admittance_delta_threshold_mm','admittance_lateral_max_iters',
+        'admittance_lateral_sign','admittance_auto_lateral_sign',
+        'admittance_wall_press_mm','admittance_depth_hold_max_passes',
+        'admittance_gel_feedback_gain','admittance_bias_gate_mm')}
     port = json.loads(Path(settings['port_config']).read_text())
     mesh = (Path(settings['port_config']).parent/port['model']['path']).resolve()
     port['model']['path'] = hashlib.sha256(mesh.read_bytes()).hexdigest()

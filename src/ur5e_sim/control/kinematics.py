@@ -202,11 +202,142 @@ def solve_ik(
     )
 
 
+def qpos_core_grasp_errors(
+    reference: np.ndarray,
+    current: np.ndarray,
+) -> tuple[float, float]:
+    """Max |Δq| for arm+sliders vs compliant grasp DOF."""
+    ref = np.asarray(reference, dtype=float).ravel()
+    cur = np.asarray(current, dtype=float).ravel()
+    if ref.shape != cur.shape:
+        return float("inf"), float("inf")
+    n_grasp = 6 if ref.size >= 14 else 0
+    if n_grasp:
+        core_err = float(np.max(np.abs(cur[:-n_grasp] - ref[:-n_grasp])))
+        grasp_err = float(np.max(np.abs(cur[-n_grasp:] - ref[-n_grasp:])))
+        return core_err, grasp_err
+    return float(np.max(np.abs(cur - ref))), 0.0
+
+
+def tcp_pose_drift(snapshot: dict, model: mujoco.MjModel, data: mujoco.MjData) -> tuple[float, float]:
+    """TCP drift (mm, deg) between snapshot fields and current simulation."""
+    if "tcp_position_m" not in snapshot:
+        return float("inf"), float("inf")
+    pos_mm = float(
+        np.linalg.norm(
+            np.asarray(snapshot["tcp_position_m"], dtype=float) - data.site("tcp").xpos
+        )
+        * 1000.0
+    )
+    snap_q = np.asarray(snapshot["tcp_quat_wxyz"], dtype=float)
+    cur_q = np.empty(4)
+    mujoco.mju_mat2Quat(cur_q, data.site("tcp").xmat.reshape(9))
+    snap_r = np.empty(9)
+    cur_r = np.empty(9)
+    mujoco.mju_quat2Mat(snap_r, snap_q)
+    mujoco.mju_quat2Mat(cur_r, cur_q)
+    angle_deg = float(
+        np.degrees(
+            np.arccos(
+                np.clip((np.trace(snap_r.reshape(3, 3) @ cur_r.reshape(3, 3).T) - 1.0) / 2.0, -1.0, 1.0)
+            )
+        )
+    )
+    return pos_mm, angle_deg
+
+
+def tcp_pose_matches(
+    reference: np.ndarray,
+    current: np.ndarray,
+    *,
+    pos_tol_m: float = 0.0015,
+    rot_tol_deg: float = 1.5,
+) -> bool:
+    ref = np.asarray(reference, dtype=float).reshape(4, 4)
+    cur = np.asarray(current, dtype=float).reshape(4, 4)
+    if np.linalg.norm(ref[:3, 3] - cur[:3, 3]) > pos_tol_m:
+        return False
+    angle_deg = float(
+        np.degrees(
+            np.arccos(
+                np.clip((np.trace(cur[:3, :3] @ ref[:3, :3].T) - 1.0) / 2.0, -1.0, 1.0)
+            )
+        )
+    )
+    return angle_deg <= rot_tol_deg
+
+
+def motion_start_qpos_valid(reference: np.ndarray, current: np.ndarray) -> bool:
+    core_err, grasp_err = qpos_core_grasp_errors(reference, current)
+    return core_err <= 0.004 and grasp_err <= 0.015
+
+
+def capture_snapshot_valid(snapshot: dict, model: mujoco.MjModel, data: mujoco.MjData) -> bool:
+    pos_mm, angle_deg = tcp_pose_drift(snapshot, model, data)
+    if np.isfinite(pos_mm) and pos_mm <= 1.5 and angle_deg <= 1.0:
+        return True
+    core_err, grasp_err = qpos_core_grasp_errors(snapshot["qpos"], data.qpos)
+    return core_err <= 0.004 and grasp_err <= 0.015
+
+
+def _arm_body_ids(model) -> frozenset[int]:
+    """Body IDs on the UR5e arm + Hand-E gripper kinematic chain (cached)."""
+    if not hasattr(_arm_body_ids, "_cache") or _arm_body_ids._model_ptr != id(model):
+        base = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "base_link")
+        ids = set()
+        def _collect(bid):
+            ids.add(bid)
+            for i in range(model.nbody):
+                if model.body_parentid[i] == bid:
+                    _collect(i)
+        if base >= 0:
+            _collect(base)
+        _arm_body_ids._cache = frozenset(ids)
+        _arm_body_ids._model_ptr = id(model)
+    return _arm_body_ids._cache
+
+
+def allowed_insertion_contact_pair(geom_a: str, geom_b: str,
+                                   model=None, geom1_id: int = -1,
+                                   geom2_id: int = -1) -> bool:
+    """Contacts ignored during IK preflight and unexpected-contact filtering.
+
+    When *model* is provided, uses the body kinematic chain to whitelist any
+    contact between the plug and the arm/gripper assembly.  Falls back to
+    name patterns when model is not available.
+    """
+    if "xense_gel" in geom_a or "xense_gel" in geom_b:
+        return True
+    plug = "held_plug" in geom_a or "held_plug" in geom_b
+    if not plug:
+        return False
+    other = geom_b if "held_plug" in geom_a else geom_a
+    other_id = geom2_id if "held_plug" in geom_a else geom1_id
+    # Body-based check: any geom on the arm/gripper chain is allowed.
+    if model is not None and other_id >= 0:
+        if int(model.geom_bodyid[other_id]) in _arm_body_ids(model):
+            return True
+    # Name-based fallback (for callers without model access).
+    if "socket_wall" in other:
+        return True
+    if "finger" in other and "part" in other:
+        return True
+    if "finger_collision" in other:
+        return True
+    if "screw" in other and ("left" in other or "right" in other):
+        return True
+    if "hande" in other and "collision" in other:
+        return True
+    return False
+
+
 def collision_preflight(
     model: mujoco.MjModel,
     start_qpos: np.ndarray,
     target_q_arm: np.ndarray,
     samples: int,
+    *,
+    plug_released: bool = False,
 ) -> tuple[bool, str | None]:
     data = mujoco.MjData(model)
     _, qpos_addresses, _ = arm_addresses(model)
@@ -218,14 +349,21 @@ def collision_preflight(
             + alpha * target_q_arm
         )
         mujoco.mj_forward(model, data)
-        if data.ncon:
-            contact = data.contact[0]
+        for contact_index in range(data.ncon):
+            contact = data.contact[contact_index]
             geom_a = mujoco.mj_id2name(
                 model, mujoco.mjtObj.mjOBJ_GEOM, contact.geom1
-            )
+            ) or ""
             geom_b = mujoco.mj_id2name(
                 model, mujoco.mjtObj.mjOBJ_GEOM, contact.geom2
-            )
+            ) or ""
+            if allowed_insertion_contact_pair(geom_a, geom_b,
+                                             model=model,
+                                             geom1_id=contact.geom1,
+                                             geom2_id=contact.geom2):
+                continue
+            if plug_released and ("held_plug" in geom_a or "held_plug" in geom_b):
+                continue
             message = (
                 f"sample={index}/{samples - 1}, alpha={alpha:.4f}, "
                 f"geoms=({geom_a}, {geom_b}), distance={contact.dist:.6g}"

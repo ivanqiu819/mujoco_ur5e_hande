@@ -19,6 +19,7 @@ dist/
 .idea/
 .DS_Store
 *.swp
+MUJOCO_LOG.TXT
 
 # Machine-specific backup location (the archive itself lives outside this repo)
 docs/ARCHIVE.json

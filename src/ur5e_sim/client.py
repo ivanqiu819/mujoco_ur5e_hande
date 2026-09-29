@@ -62,7 +62,15 @@ class Client:
         return result
 
     def state(self): return self.request(op='state')['result']
+
+    def read_tactile(self): return self.request(op='tactile')['result']
     def stop(self): return self.request(op='stop')
+
+    def reset_home(self): return self.request(op='reset_home')
+
+    def release_plug(self): return self.request(op='release_plug')
+
+    def seat_plug(self): return self.request(op='seat_plug')
 
     def capture(self):
         meta = self.request(op='capture')['result']
@@ -89,6 +97,18 @@ class Client:
             if not state['arm_moving'] and phase != 'moving': return state
             time.sleep(.02)
         self.stop(); raise TimeoutError('Motion completion timed out')
+
+    def wait_gripper(self, timeout=30):
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            state = self.state()
+            gs = state.get('gripper_state')
+            if gs == 'at_target':
+                return state
+            if gs == 'contact_blocked':
+                raise RuntimeError('Gripper opening blocked by contact')
+            time.sleep(.02)
+        raise TimeoutError('Gripper motion timed out')
 
     def close(self): self.sock.close()
     def __enter__(self): return self

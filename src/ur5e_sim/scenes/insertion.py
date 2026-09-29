@@ -11,6 +11,21 @@ import cv2
 import mujoco
 import numpy as np
 
+from ur5e_sim.scenes.gel_mount import (
+    SOCKET_WALL_CONAFFINITY,
+    SOCKET_WALL_CONTYPE,
+    add_gel_geoms,
+)
+from ur5e_sim.scenes.grasp_compliance import (
+    append_plug_free_qpos_to_keyframes,
+    attach_rigid_held_plug,
+    settle_plug_home_keyframe,
+)
+from ur5e_sim.scenes.materials import (
+    apply_finger_collision_materials,
+    apply_socket_wall_materials,
+    load_materials,
+)
 from ur5e_sim.scenes.inspection import quaternion_matrix
 from ur5e_sim.config import load_settings, pose_resources
 from ur5e_sim.camera.calibration import load_spec
@@ -103,8 +118,11 @@ def build(settings):
              ([slot_low[0], slot_low[1], lower[2]], [slot_high[0], slot_high[1], slot_low[2]])]
     for i, (lo, hi) in enumerate(boxes):
         lo, hi = np.asarray(lo), np.asarray(hi)
-        ET.SubElement(body, 'geom', name=f'socket_wall_{i}', type='box',
-                      attrib={'class': 'collision'}, pos=numbers((lo+hi)/2), size=numbers((hi-lo)/2))
+        wall = ET.SubElement(body, 'geom', name=f'socket_wall_{i}', type='box',
+                             attrib={'class': 'collision'}, pos=numbers((lo+hi)/2), size=numbers((hi-lo)/2))
+        wall.set('contype', SOCKET_WALL_CONTYPE)
+        wall.set('conaffinity', SOCKET_WALL_CONAFFINITY)
+    apply_socket_wall_materials(root)
     # Split by the same material regions as the original image experiment.
     body.remove(body.find("geom[@name='inspection_workpiece_visual']"))
     grays = triangle_materials(geometry, config['render'])
@@ -137,35 +155,38 @@ def build(settings):
                           pos=numbers([(x0+x1)/2, -(y0+y1)/2, -.000002]),
                           size=numbers([(x1-x0)/2, (y1-y0)/2, .000002]),
                           rgba=numbers([gray]*3+[1]), contype='0', conaffinity='0', group='2', mass='0')
-    wrist = root.find(".//body[@name='wrist_3_link']")
-    tcp = wrist.find("site[@name='tcp']")
-    plug = ET.SubElement(wrist, 'body', name='held_plug', pos=tcp.get('pos'), quat=tcp.get('quat'), gravcomp='1')
     size = np.asarray(settings['plug_size_m'])
-    tip = np.asarray(settings['plug_tip_tcp_m'])
-    center = tip - [0, 0, size[2]/2]
-    inertia = settings['plug_mass_kg']/12 * np.array([size[1]**2+size[2]**2, size[0]**2+size[2]**2, size[0]**2+size[1]**2])
-    ET.SubElement(plug, 'inertial', pos=numbers(center), mass=str(settings['plug_mass_kg']), diaginertia=numbers(inertia))
-    ET.SubElement(plug, 'geom', name='held_plug_collision', type='box', pos=numbers(center), size=numbers(size/2), rgba='.15 .3 .75 1')
-    ET.SubElement(plug, 'site', name='plug_tip', pos=numbers(tip), size='.001', group='4', rgba='0 0 0 0')
     contact = root.find('contact')
     if contact is None:
         contact = ET.SubElement(root, 'contact')
-    for finger in ('left_gripper', 'right_gripper'):
-        ET.SubElement(contact, 'exclude', body1='held_plug', body2=finger)
+    add_gel_geoms(root, replace=True)
+    apply_finger_collision_materials(root)
+    materials = load_materials()
+    noslip = int(materials.get("noslip_iterations", 3))
+    option = root.find("option")
+    if option is not None and noslip > 0:
+        option.set("noslip_iterations", str(noslip))
+    ET.SubElement(contact, 'exclude', body1='left_gripper', body2='right_gripper')
     closed = float(root.find(".//numeric[@name='gripper_closed_q']").get('data'))
-    q = closed + size[0]/2
+    q_gap = closed + size[0] / 2            # slider pos with plug exactly fitting
+    q_grip = closed + size[0] / 2 * 0.85    # slightly past plug surface → contact squeeze
     for key in root.findall('.//key'):
         qpos = np.fromstring(key.get('qpos'), sep=' ')
         ctrl = np.fromstring(key.get('ctrl'), sep=' ')
-        qpos[-2:], ctrl[-1] = q, q
-        key.set('qpos', numbers(qpos)); key.set('ctrl', numbers(ctrl))
+        qpos[-2:] = q_gap                   # start with plug just fitting
+        ctrl[-1] = q_grip                    # command tries to close past plug → friction
+        key.set('qpos', numbers(qpos))
+        key.set('ctrl', numbers(ctrl))
+    world_pos, world_quat = attach_rigid_held_plug(root, plug_settings=settings, materials=materials)
+    plug_qpos = np.r_[world_pos, world_quat]
+    append_plug_free_qpos_to_keyframes(root, plug_qpos)
+    settle_plug_home_keyframe(root, settle_steps=int(materials.get("home_plug_settle_steps", 800)))
     # Store the nominal setup separately from runtime workpiece ground truth.
     nominal = np.eye(4)
     nominal[:3, :3] = rotation @ geometry.T_stl_port[:3, :3]
     nominal[:3, 3] = translation + rotation @ centre
     custom = root.find('custom')
     ET.SubElement(custom, 'numeric', name='insertion_nominal_port', data=numbers(nominal))
-    ET.SubElement(custom, 'numeric', name='insertion_fixed_gap', data=str(size[0]))
     from ur5e_sim.config import scene_signature
     ET.SubElement(custom, 'text', name='insertion_config_sha256', data=scene_signature(settings))
     root.set('model', 'UR5e pre-held plug horizontal insertion')

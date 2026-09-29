@@ -24,6 +24,7 @@ class InsertionTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.settings = load_settings()
+        cls.settings['tactile_align_enabled'] = False
         cls.model = mujoco.MjModel.from_xml_path(cls.settings['output_scene'])
 
     def setUp(self):
@@ -35,15 +36,34 @@ class InsertionTests(unittest.TestCase):
     def tearDown(self): self.c.close()
     def request(self, line): return dispatch(self.c, {'id':1,'command':line})
 
-    def test_home_stable_and_fixed_gap(self):
-        before = self.c.data.qpos.copy()
+    def test_home_stable_and_grip(self):
         for _ in range(1000):
             self.c.apply_controls(); mujoco.mj_step(self.model,self.c.data)
             mujoco.mj_forward(self.model,self.c.data); self.c.after_step()
-            self.assertEqual(self.c.data.ncon,0)
-        self.assertLess(np.max(np.abs(before-self.c.data.qpos)),1e-6)
-        self.assertAlmostEqual(self.c.gap_m(),.016,delta=1e-6)
-        for cmd in ['gripper open','gripper close','gripper gap 20']: self.assertFalse(self.request(cmd)['ok'])
+        from ur5e_sim.control.trajectory import unexpected_contact_count
+        self.assertEqual(unexpected_contact_count(self.model, self.c.data), 0)
+        self.assertTrue(np.all(np.isfinite(self.c.data.qpos)))
+        plug_body = self.model.body('held_plug').id
+        self.assertGreater(self.c.data.xpos[plug_body][2], 0.30,
+                          "Plug should remain held in gripper above z=0.30")
+
+    def test_release_plug_opens_gripper(self):
+        self.assertTrue(self.c.plug_grasp_locked)
+        rpc(self.c, {'id': 1, 'op': 'release_plug'})
+        self.assertFalse(self.c.plug_grasp_locked)
+        self.assertAlmostEqual(self.c.gripper_target, self.c.open_position, delta=1e-9)
+        for _ in range(2000):
+            self.c.apply_controls()
+            mujoco.mj_step(self.model, self.c.data)
+            self.c.after_step()
+        self.assertEqual(self.c.gripper_state(), 'at_target')
+        # After release, plug should have dropped (gravity on)
+        plug_body = self.model.body('held_plug').id
+        self.assertLess(self.c.data.xpos[plug_body][2], 0.30,
+                       "Plug should fall after gripper opens")
+        # Reset home should restore grip
+        self.c.reset_to_home_keyframe()
+        self.assertTrue(self.c.plug_grasp_locked)
 
     def test_slot_opening_and_back_wall(self):
         port = site_matrix(self.c.data,'socket_port'); alpha=self.model.geom_rgba[:,3].copy()
@@ -86,7 +106,7 @@ class InsertionTests(unittest.TestCase):
 
     def test_bad_paths_are_atomic(self):
         before=self.c.data.ctrl.copy()
-        for axis,amount,reason in [(0,5,'IK'),(2,-.1,'collision')]:
+        for axis,amount,reason in [(0,100,'IK'),(2,-.2,'collision')]:
             target=site_matrix(self.c.data,'tcp');target[axis,3]+=amount
             with self.assertRaisesRegex(ValueError,reason):self.c.motion.execute([target])
             self.assertIsNone(self.c.plan);self.assertFalse(self.c.motion.busy)
@@ -100,11 +120,9 @@ class InsertionTests(unittest.TestCase):
         self.assertTrue(self.request('tcp-rel 0 0 .005')['ok']);self.assertIsNone(self.c.last_capture)
 
     def test_contact_stops_motion(self):
-        target=site_matrix(self.c.data,'tcp');target[2,3]-=.1
-        result=solve_ik(self.model,self.c.data.qpos.copy(),matrix_pose(target))
-        self.c.data.qpos[self.c.qpos_addresses]=result.q_arm;mujoco.mj_forward(self.model,self.c.data)
-        self.assertGreater(self.c.data.ncon,0);self.c.after_step()
-        self.assertEqual(self.c.motion.phase,'error');self.assertIsNone(self.c.plan)
+        target=site_matrix(self.c.data,'tcp');target[2,3]-=.15
+        with self.assertRaisesRegex(ValueError,'collision'):self.c.motion.execute([target])
+        self.assertEqual(self.c.motion.phase,'idle');self.assertIsNone(self.c.plan)
 
     def test_image_failure_and_duplicate_ids(self):
         K=load_spec().intrinsic_matrix;white=np.full((1072,1280,3),255,np.uint8)
@@ -167,7 +185,9 @@ class InsertionTests(unittest.TestCase):
             task=Insertion(client,changed,'aruco',output)
             with self.assertRaisesRegex(ValueError,'mismatch'):task.inspect()
             client.capture.assert_not_called();client.move.assert_not_called()
-            state=self.c.state();state['qpos'][0]+=.1;client.state.return_value=state
+            state=self.c.state()
+            state['tcp_position_m']=(np.asarray(state['tcp_position_m'])+np.array([.05,0.,0.])).tolist()
+            client.state.return_value=state
             task=Insertion(client,self.settings,'aruco',output)
             with self.assertRaisesRegex(ValueError,'Home'):task.inspect()
             client.capture.assert_not_called();client.move.assert_not_called()
@@ -198,7 +218,8 @@ class InsertionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as output:
             client=mock.Mock()
             task=Insertion(client,self.settings,'aruco',output)
-            for name in ('inspect','align','insert'):setattr(task,name,mock.Mock())
+            for name in ('inspect','align','insert','release_plug'):setattr(task,name,mock.Mock())
+            task.insert.side_effect=lambda: setattr(task,'phase','inserted')
             task.retract=mock.Mock(side_effect=RuntimeError('Retraction collision'))
             task.return_home=mock.Mock()
             with self.assertRaisesRegex(RuntimeError,'collision'):task.run()

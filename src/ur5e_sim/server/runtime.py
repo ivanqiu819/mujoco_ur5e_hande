@@ -21,6 +21,7 @@ import numpy as np
 from ur5e_sim.control.manual import TeleopController, MotionPlan, handle_key, handle_terminal_command
 from ur5e_sim.control.kinematics import set_target_marker, Pose, normalize_quaternion
 from ur5e_sim.control.limits import DEFAULT_CARTESIAN_SPEED_M_S
+from ur5e_sim.control.trajectory import unexpected_contact_count
 
 from ur5e_sim.paths import ROOT as ROOT
 MAX_BYTES = 65536
@@ -48,21 +49,89 @@ class Controller(TeleopController):
         self.slider_vadr = model.jnt_dofadr[self.slider_ids]
         self.last_gripper_state = 'at_target'
         from ur5e_sim.control.trajectory import TrajectoryExecutor
-        self.fixed_grip = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_NUMERIC, 'insertion_fixed_gap') >= 0
+        self.insertion_scene = (
+            mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_NUMERIC, 'insertion_nominal_port') >= 0
+        )
+        if self.insertion_scene and model.opt.noslip_iterations < 3:
+            model.opt.noslip_iterations = 3
+        self.plug_grasp_locked = bool(self.insertion_scene)
+        self._socket_wall_original_friction = {}
+        if self.insertion_scene:
+            for i in range(model.ngeom):
+                name = model.geom(i).name or ""
+                if name.startswith("socket_wall_"):
+                    self._socket_wall_original_friction[i] = model.geom_friction[i].copy()
+        self.home_slider_q = None
+        self.home_gripper_ctrl = None
+        self.home_plug_qpos = None
+        self.home_plug_qadr = None
+        self.home_tcp_position = None
+        self.home_tcp_quat = None
+        if self.insertion_scene:
+            from ur5e_sim.control.kinematics import site_pose, object_id
+
+            home_id = model.key('home').id
+            home_q = model.key_qpos[home_id]
+            self.home_slider_q = home_q[self.slider_qadr].copy()
+            self.home_gripper_ctrl = float(model.key_ctrl[home_id, self.gripper_id])
+            plug_jid = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, 'plug_free')
+            if plug_jid >= 0:
+                self.home_plug_qadr = int(model.jnt_qposadr[plug_jid])
+                self.home_plug_qpos = home_q[self.home_plug_qadr : self.home_plug_qadr + 7].copy()
+            home_data = mujoco.MjData(model)
+            home_data.qpos[:] = home_q
+            mujoco.mj_forward(model, home_data)
+            tcp_id = object_id(model, mujoco.mjtObj.mjOBJ_SITE, 'tcp')
+            home_tcp = site_pose(model, home_data, tcp_id)
+            self.home_tcp_position = home_tcp.position.copy()
+            self.home_tcp_quat = home_tcp.quaternion_wxyz.copy()
+            self.gripper_target = self.home_gripper_ctrl
+            self.gripper_command = self.gripper_target
+            data.ctrl[self.gripper_id] = self.gripper_command
         self.motion = TrajectoryExecutor(self, {'collision_samples': max(320, args.collision_samples),
                                               'insert_speed_m_s': DEFAULT_CARTESIAN_SPEED_M_S, 'settle_s': .3})
         self.camera = None
         self.last_capture = None
         self.motion_generation = 0
+        from ur5e_sim.tactile.preview import model_has_gels
+
+        self.tactile_gels = model_has_gels(model)
+
+    def tactile_read(self) -> dict:
+        if not self.tactile_gels:
+            return {'enabled': False}
+        from ur5e_sim.tactile.tactile_boundary import compute_dual_boundary
+
+        from ur5e_sim.control.tactile_align import gripper_open_axis_world
+
+        boundary = compute_dual_boundary(self.model, self.data)
+        press_l, press_r = boundary[2], boundary[3]
+        delta = float(press_l - press_r)
+        axis = gripper_open_axis_world(self.model, self.data)
+        result = {
+            'enabled': True,
+            'press_l_mm': float(press_l),
+            'press_r_mm': float(press_r),
+            'delta_press_mm': delta,
+            'peak_press_mm': float(max(press_l, press_r)),
+        }
+        if np.any(axis):
+            result['gripper_open_axis_world'] = axis.tolist()
+        if self.insertion_scene:
+            nominal = self.model.numeric('insertion_nominal_port').data.reshape(4, 4)
+            result['nominal_port_x_world'] = nominal[:3, 0].tolist()
+        return result
 
     def gripper_state(self):
         error = float(np.max(np.abs(self.data.qpos[self.slider_qadr]-self.gripper_target)))
-        if error < .00005:
+        if error < .0002:
             return 'at_target'
         ramping = abs(self.gripper_command-self.gripper_target) > 1e-8
         velocity = float(np.max(np.abs(self.data.qvel[self.slider_vadr])))
         if not ramping and self.data.time-self.gripper_changed_at>.5 and velocity<.0002:
-            return 'contact_blocked' if self.finger_contacts() else 'not_reached'
+            if self.plug_grasp_locked or self.finger_contacts():
+                return 'contact_blocked'
+            return 'not_reached'
         return 'moving'
 
     def finger_contacts(self):
@@ -95,34 +164,129 @@ class Controller(TeleopController):
                 'contacts':self.finger_contacts(),
                 'closed_q_m':self.closed_position,
                 'open_q_m':self.open_position}
-        result.update(motion=self.motion.state(), qpos=self.data.qpos.tolist(),
-                      qvel=self.data.qvel.tolist(), fixed_grip=self.fixed_grip,
-                      contact_count=int(self.data.ncon), generation=self.motion_generation)
+        result.update(
+            motion=self.motion.state(),
+            qpos=self.data.qpos.tolist(),
+            qvel=self.data.qvel.tolist(),
+            insertion_scene=self.insertion_scene,
+            plug_grasp_locked=self.plug_grasp_locked,
+            fixed_grip=self.insertion_scene,
+            fixed_grip_locked=self.plug_grasp_locked,
+            contact_count=unexpected_contact_count(self.model, self.data),
+            generation=self.motion_generation,
+        )
+        if self.insertion_scene and self.home_plug_qadr is not None:
+            from ur5e_sim.config import site_matrix
+
+            result['plug_tip_world'] = site_matrix(self.data, 'plug_tip').tolist()
         if self.camera is not None:
             result['camera'] = self.camera.status
-        if self.fixed_grip:
+        if self.insertion_scene:
             result['nominal_port'] = self.model.numeric('insertion_nominal_port').data.reshape(4,4).tolist()
             signature_id = mujoco.mj_name2id(self.model,mujoco.mjtObj.mjOBJ_TEXT,'insertion_config_sha256')
             result['scene_signature'] = (self.model.text_data[self.model.text_adr[signature_id]:
                 self.model.text_adr[signature_id]+self.model.text_size[signature_id]-1].decode()
                 if signature_id >= 0 else None)
             result['home_qpos'] = self.model.key('home').qpos.tolist()
+            if self.home_tcp_position is not None:
+                result['home_tcp_position_m'] = self.home_tcp_position.tolist()
+                result['home_tcp_quat_wxyz'] = self.home_tcp_quat.tolist()
+        result['tactile'] = self.tactile_read()
         return result
+
+    def reset_to_home_keyframe(self) -> None:
+        if not self.insertion_scene:
+            raise ValueError('reset_home is only for the insertion scene')
+        self.motion.cancel()
+        self.motion.protected = False
+        self.motion.recovery_target = None
+        self.motion.phase = 'idle'
+        self.motion.reason = ''
+        self.plan = None
+        self.last_capture = None
+        mujoco.mj_resetDataKeyframe(self.model, self.data, self.model.key('home').id)
+        if self.home_slider_q is not None:
+            self.data.qpos[self.slider_qadr] = self.home_slider_q
+        if self.home_plug_qadr is not None and self.home_plug_qpos is not None:
+            self.data.qpos[self.home_plug_qadr : self.home_plug_qadr + 7] = self.home_plug_qpos
+        self.data.qvel[:] = 0.0
+        mujoco.mj_forward(self.model, self.data)
+        self.arm_hold_target = self.data.qpos[self.qpos_addresses].copy()
+        self.gripper_target = self.home_gripper_ctrl
+        self.gripper_command = self.gripper_target
+        self.data.ctrl[self.gripper_id] = self.gripper_command
+        self.data.ctrl[self.arm_actuator_ids] = self.arm_hold_target
+        self.commanded_pose = self.current_pose()
+        set_target_marker(self.model, self.data, self.commanded_pose)
+        self.plug_grasp_locked = True
+        self._restore_socket_wall_friction()
+        self.motion_generation += 1
+        print('RESET_HOME: keyframe restored', flush=True)
+
+    def seat_plug_in_socket(self) -> None:
+        if not self.insertion_scene:
+            raise ValueError('seat_plug is only for the insertion scene')
+        if self.plug_grasp_locked:
+            raise ValueError('Release the gripper before settling the plug')
+        if self.gripper_state() != 'at_target':
+            raise ValueError('Gripper must finish opening before settling')
+        mujoco.mj_forward(self.model, self.data)
+        print('PLUG_RELEASED: gripper open; plug settles under contact and gravity', flush=True)
+
+    def release_preheld_plug(self) -> None:
+        if not self.insertion_scene:
+            raise ValueError('release_plug is only for the insertion scene')
+        if not self.plug_grasp_locked:
+            raise ValueError('Plug grip is already released')
+        if self.plan is not None or self.motion.busy:
+            raise ValueError('Arm busy; wait before release')
+        gs = self.gripper_state()
+        if gs == 'moving' and not self.plug_grasp_locked:
+            raise ValueError('Gripper busy; wait before release')
+        # Boost socket wall friction before opening the gripper so the plug
+        # stays in the socket under gravity (tight-fit hold friction).
+        self._boost_socket_wall_friction()
+        self.plug_grasp_locked = False
+        self.gripper_target = float(self.open_position)
+        self.gripper_changed_at = float(self.data.time)
+        print('GRIPPER_RELEASE: opening to leave plug in socket', flush=True)
+
+    def _boost_socket_wall_friction(self) -> None:
+        """Raise socket wall friction to hold the plug after gripper release.
+
+        During insertion the socket wall has moderate friction so the plug
+        slides in without excessive grip-slip.  Once the gripper opens, we
+        need high wall friction to keep the plug seated against gravity.
+        """
+        hold_friction = np.array([2.0, 0.05, 0.005])
+        for i in range(self.model.ngeom):
+            name = self.model.geom(i).name or ""
+            if name.startswith("socket_wall_"):
+                self.model.geom_friction[i, :len(hold_friction)] = hold_friction
+        print('SOCKET_WALL_FRICTION_BOOSTED: post-release hold friction applied', flush=True)
+
+    def _restore_socket_wall_friction(self) -> None:
+        """Restore socket wall friction to its original (scene-build) values."""
+        for gid, friction in self._socket_wall_original_friction.items():
+            self.model.geom_friction[gid] = friction
 
     def stop(self):
         self.motion.cancel()
         self.motion_generation += 1
         self.last_capture = None
         super().stop()
-        self.gripper_target = float(np.mean(self.data.qpos[self.slider_qadr]))
+        if self.home_gripper_ctrl is not None and self.plug_grasp_locked:
+            self.gripper_target = self.home_gripper_ctrl
+        else:
+            self.gripper_target = float(np.mean(self.data.qpos[self.slider_qadr]))
         self.gripper_command = self.gripper_target
         self.data.ctrl[self.gripper_id] = self.gripper_command
         self.data.ctrl[self.arm_actuator_ids] = self.arm_hold_target
         print('GRIPPER_STOPPED: hold measured slider position (not an instantaneous brake)')
 
     def set_gripper(self, position_m, *, label):
-        if self.fixed_grip:
-            print('COMMAND_REJECTED: pre-held plug scene has a fixed gripper gap')
+        if self.insertion_scene and self.plug_grasp_locked:
+            print('COMMAND_REJECTED: insertion scene keeps gripper closed until release_plug')
             return False
         if self.plan is not None or self.motion.busy:
             print('COMMAND_REJECTED: arm is moving; wait for completion or send stop')
@@ -152,14 +316,23 @@ class Controller(TeleopController):
             probe.qpos[:] = start
             probe.qpos[self.qpos_addresses] = (1-alpha)*start[self.qpos_addresses]+alpha*target_q_arm
             mujoco.mj_forward(self.model,probe)
+            from ur5e_sim.control.kinematics import allowed_insertion_contact_pair
             for i in range(probe.ncon):
                 c = probe.contact[i]
-                pair = {int(self.model.geom_bodyid[c.geom1]),int(self.model.geom_bodyid[c.geom2])}
+                g1 = self.model.geom(c.geom1).name or ""
+                g2 = self.model.geom(c.geom2).name or ""
+                if allowed_insertion_contact_pair(g1, g2,
+                                                 model=self.model,
+                                                 geom1_id=c.geom1,
+                                                 geom2_id=c.geom2):
+                    continue
+                if not self.plug_grasp_locked and ("held_plug" in g1 or "held_plug" in g2):
+                    continue
+                pair = {int(self.model.geom_bodyid[c.geom1]), int(self.model.geom_bodyid[c.geom2])}
                 closed_touch = (pair == self.finger_bodies and c.dist >= -.00005 and
                                 abs(self.gap_m()) <= .0001)
                 if not closed_touch:
-                    print('COMMAND_REJECTED: collision', self.model.geom(c.geom1).name,
-                          self.model.geom(c.geom2).name, 'distance_m=',float(c.dist))
+                    print('COMMAND_REJECTED: collision', g1, g2, 'distance_m=', float(c.dist))
                     return False
         duration = max(.25,1.5*delta/self.max_joint_speed_rad_s)
         self.last_capture = None
@@ -202,6 +375,7 @@ def rpc(c, request):
     """Task-neutral control API. All mutations occur on the simulation thread."""
     op = request['op']
     if op == 'state': return c.state()
+    if op == 'tactile': return c.tactile_read()
     if op == 'stop': c.stop(); return None
     if op == 'preview':
         if c.camera is None: raise ValueError('Scene has no camera')
@@ -210,20 +384,34 @@ def rpc(c, request):
         if c.camera is None: raise ValueError('Scene has no camera')
         if c.plan is not None or c.motion.busy or c.motion.protected:
             raise ValueError('Capture for localization requires an idle unprotected robot')
-        meta = c.camera.capture(c.data)
+        meta = c.camera.capture(c.data, plug_seated=not c.plug_grasp_locked)
         c.last_capture = meta | {'generation':c.motion_generation}
         return c.last_capture
     if op == 'recover':
         c.motion.recover(); c.motion_generation += 1; c.last_capture = None; return None
+    if op == 'reset_home':
+        c.reset_to_home_keyframe()
+        return None
+    if op == 'release_plug':
+        c.release_preheld_plug()
+        return None
+    if op == 'seat_plug':
+        c.seat_plug_in_socket()
+        return None
     if op == 'motion':
+        from ur5e_sim.control.kinematics import capture_snapshot_valid, motion_start_qpos_valid
+
         expected = np.asarray(request['start_qpos'], dtype=float)
-        if expected.shape != c.data.qpos.shape or not np.isfinite(expected).all() or np.max(np.abs(expected-c.data.qpos)) > .0002:
+        if expected.shape != c.data.qpos.shape or not np.isfinite(expected).all():
+            raise ValueError('Motion start snapshot is stale')
+        if not motion_start_qpos_valid(expected, c.data.qpos):
             raise ValueError('Motion start snapshot is stale')
         token = request.get('capture_id')
         if token is not None:
             snap = c.last_capture
-            if (snap is None or snap['capture_id'] != token or snap['generation'] != c.motion_generation
-                    or np.max(np.abs(np.asarray(snap['qpos'])-c.data.qpos)) > .0002):
+            if snap is None or snap['capture_id'] != token or snap['generation'] != c.motion_generation:
+                raise ValueError('Detection capture is stale or invalidated')
+            if not capture_snapshot_valid(snap, c.model, c.data):
                 raise ValueError('Detection capture is stale or invalidated')
         samples, settle = request.get('collision_samples',320), request.get('settle_s',.3)
         if type(samples) is not int or not 320 <= samples <= 5000:
@@ -395,6 +583,18 @@ def parse_args():
     p.add_argument('--collision-samples',type=int,default=120)
     p.add_argument('--max-joint-speed',type=float,default=.75)
     p.add_argument('--status-hz',type=float,default=1)
+    p.add_argument('--tactile-preview', action='store_true',
+                   help='Show MuJoCo gel depth map (requires xense gels in scene)')
+    p.add_argument('--use-fem-sidecar', action='store_true',
+                   help='With --tactile-preview, spawn xensim_py311 FEM window via npz IPC')
+    p.add_argument('--xensim-python', type=str, default='',
+                   help='Python 3.11 with xensim for FEM sidecar')
+    p.add_argument('--tactile-hz', type=float, default=20.0,
+                   help='Max rate for gel depth/FEM IPC (default 20; sim physics stays at 500 Hz)')
+    p.add_argument('--no-tactile-physics', action='store_true',
+                   help='Use L0 socket proxy depth instead of gel–plug boundary (debug)')
+    p.add_argument('--debug-proxy-overlay', action='store_true',
+                   help='Stack L0 proxy under L1 gel–plug depth window')
     a=p.parse_args()
     if not 1<=a.port<=65534 or a.collision_samples<2:
         p.error('Invalid port or collision sample count')
@@ -402,6 +602,8 @@ def parse_args():
         p.error('--max-joint-speed must be in (0,2] rad/s')
     if not np.isfinite(a.status_hz) or not 0<=a.status_hz<=20:
         p.error('--status-hz must be in [0,20]')
+    if not np.isfinite(a.tactile_hz) or not 1 <= a.tactile_hz <= 60:
+        p.error('--tactile-hz must be in [1,60]')
     return a
 
 
@@ -416,6 +618,7 @@ def main():
         model.geom_rgba[model.geom_group==3] = [.2,.9,.25,.35]
     link=Link(args.port,controller)
     evaluation = None
+    tactile = None
     try:
         if mujoco.mj_name2id(model,mujoco.mjtObj.mjOBJ_CAMERA,'ee_camera') >= 0:
             from ur5e_sim.camera.live import CameraService
@@ -425,6 +628,18 @@ def main():
             args.evaluation_dir.mkdir(parents=True,exist_ok=True)
             evaluation = (args.evaluation_dir/'physics.jsonl').open('w')
         print('CONFIG_CAMERA:', args.camera_config.resolve(), flush=True)
+        if args.tactile_preview or args.use_fem_sidecar:
+            from ur5e_sim.tactile.preview import TactilePreview
+            tactile = TactilePreview(
+                model,
+                use_fem_sidecar=args.use_fem_sidecar,
+                xensim_python=args.xensim_python,
+                show_window=not args.headless,
+                tactile_hz=args.tactile_hz,
+                tactile_physics=not args.no_tactile_physics,
+                debug_proxy_overlay=args.debug_proxy_overlay,
+            )
+            print('TACTILE_PREVIEW: on (FEM sidecar=%s)' % args.use_fem_sidecar, flush=True)
         viewer_context=contextlib.nullcontext(None)
         if not args.headless:
             from mujoco import viewer
@@ -449,13 +664,18 @@ def main():
                 mujoco.mj_forward(model,data)
                 controller.after_step()
                 if controller.camera is not None:
-                    controller.camera.poll(data)
-                if evaluation is not None and controller.fixed_grip:
+                    controller.camera.poll(
+                        data, plug_seated=not controller.plug_grasp_locked
+                    )
+                if tactile is not None:
+                    tactile.update(model, data)
+                if evaluation is not None and controller.insertion_scene:
                     from ur5e_sim.config import site_matrix
                     evaluation.write(json.dumps({'sim_time':float(data.time),
                         'tip':site_matrix(data,'plug_tip').tolist(),
                         'port':site_matrix(data,'socket_port').tolist(),
-                        'contact_count':int(data.ncon), 'warnings':int(np.sum(data.warning.number)),
+                        'contact_count':unexpected_contact_count(model, data),
+                        'warnings':int(np.sum(data.warning.number)),
                         'motion':controller.motion.state(),
                         'camera':None if controller.camera is None else controller.camera.status})+'\n')
                 if view is not None and time.monotonic()-previous_view >= 1/30:
@@ -474,6 +694,8 @@ def main():
     finally:
         link.close()
         controller.close()
+        if tactile is not None:
+            tactile.close()
         if evaluation is not None: evaluation.close()
     print('SERVER_STOPPED',flush=True)
 

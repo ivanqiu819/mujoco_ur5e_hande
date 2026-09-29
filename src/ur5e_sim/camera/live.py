@@ -66,7 +66,10 @@ def render_worker(scene, config, states, captures, results, commands, shutdown, 
                     snapshot = states.get(timeout=.01)
                 except queue.Empty:
                     continue
+            plug_seated = bool(snapshot.pop('plug_seated', False))
             mujoco.mj_setState(model, data, snapshot.pop('physics'), mujoco.mjtState.mjSTATE_INTEGRATION)
+            from ur5e_sim.scenes.plug_seat import sync_plug_render_visibility
+            sync_plug_render_visibility(model, plug_seated=plug_seated)
             mujoco.mj_forward(model, data)
             if is_capture:
                 rgb = capture.rgb(data)
@@ -122,29 +125,42 @@ class CameraService:
         self.thread = threading.Thread(target=self._serve, daemon=True)
         self.thread.start()
 
-    def snapshot(self, data):
+    def snapshot(self, data, *, plug_seated=False):
+        from ur5e_sim.control.kinematics import object_id, site_pose
+
         self.serial += 1
         physics = np.empty(mujoco.mj_stateSize(self.model, mujoco.mjtState.mjSTATE_INTEGRATION))
         mujoco.mj_getState(self.model, data, physics, mujoco.mjtState.mjSTATE_INTEGRATION)
         _, world_camera = camera_transforms(self.model, data, self.spec.name)
-        return {'frame_id': self.serial, 'sim_time': float(data.time), 'wall_time': time.monotonic(),
-                'qpos': data.qpos.tolist(), 'T_world_camera': world_camera.tolist(),
-                'intrinsic_matrix': self.spec.intrinsic_matrix.tolist(),
-                'shape': [self.spec.height, self.spec.width, 3], 'physics': physics}
+        tcp_id = object_id(self.model, mujoco.mjtObj.mjOBJ_SITE, "tcp")
+        tcp = site_pose(self.model, data, tcp_id)
+        return {
+            'frame_id': self.serial,
+            'sim_time': float(data.time),
+            'wall_time': time.monotonic(),
+            'qpos': data.qpos.tolist(),
+            'tcp_position_m': tcp.position.tolist(),
+            'tcp_quat_wxyz': tcp.quaternion_wxyz.tolist(),
+            'T_world_camera': world_camera.tolist(),
+            'intrinsic_matrix': self.spec.intrinsic_matrix.tolist(),
+            'shape': [self.spec.height, self.spec.width, 3],
+            'physics': physics,
+            'plug_seated': bool(plug_seated),
+        }
 
-    def capture(self, data):
+    def capture(self, data, *, plug_seated=False):
         if not self.process.is_alive() or self.status.get('event') == 'error':
             raise ValueError('Camera renderer unavailable')
         if len(self.pending) >= 2:
             raise ValueError('Camera capture queue full')
-        snapshot = self.snapshot(data)
+        snapshot = self.snapshot(data, plug_seated=plug_seated)
         snapshot['capture_id'] = f'{self.token}-{snapshot["frame_id"]}'
         try: self.captures.put_nowait(snapshot)
         except queue.Full: raise ValueError('Camera capture queue full')
         self.pending.add(snapshot['capture_id'])
         return {k:v for k,v in snapshot.items() if k != 'physics'} | {'port':self.port}
 
-    def poll(self, data):
+    def poll(self, data, *, plug_seated=False):
         while True:
             try: result = self.results.get_nowait()
             except queue.Empty: break
@@ -159,7 +175,7 @@ class CameraService:
                 self.status = result
         now = time.monotonic()
         if now-self.last_preview >= 1/self.spec.preview_hz:
-            snapshot = self.snapshot(data)
+            snapshot = self.snapshot(data, plug_seated=plug_seated)
             try: self.states.put_nowait(snapshot)
             except queue.Full:
                 try: self.states.get_nowait()
