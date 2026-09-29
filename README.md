@@ -15,6 +15,18 @@ conda activate mujoco_ur5e
 python -m pip install -e .
 ```
 
+### 构建场景
+
+首次使用或修改物理/几何参数后，需要重新生成 MuJoCo 插入场景：
+
+```bash
+python tools/build_scenes.py
+```
+
+这一步把 `configs/insertion.json`、`configs/materials.yaml` 中的插头尺寸、摩擦参数和凝胶挂载写入 `scenes/scene_insertion.xml`。
+
+### 基本运行
+
 终端 A 启动服务端，自动打开一个 MuJoCo Viewer 和实时 RGB 窗口：
 
 ```bash
@@ -27,6 +39,62 @@ python apps/server.py
 python apps/insert_socket.py
 # 切换到 PnP
 python apps/insert_socket.py --route pnp
+```
+
+### 触觉深度预览
+
+服务端启动时加上 `--tactile-preview`，在运动中实时显示凝胶 L/R 深度图：
+
+```bash
+python apps/server.py --tactile-preview
+```
+
+如果安装了 Xensim FEM（需要 Python 3.11 环境），可以同时启动 FEM sidecar 对比：
+
+```bash
+python apps/server.py --tactile-preview --use-fem-sidecar \
+    --xensim-python /path/to/xensim_py311/bin/python
+```
+
+触觉相关参数：
+
+| 参数 | 说明 |
+|------|------|
+| `--tactile-preview` | 开启 OpenCV 凝胶深度图窗口 |
+| `--use-fem-sidecar` | 同时启动 Xensim FEM 子进程（需 `--xensim-python`） |
+| `--tactile-hz 20` | 触觉可视化更新频率（默认 20 Hz，物理仍为 500 Hz） |
+| `--no-tactile-physics` | 用 L0 接触代理深度替代 L1 凝胶边界深度（调试用） |
+
+### 插入模式
+
+插入过程使用连续轨迹一次性推进。运动中以 20 ms 间隔轮询凝胶 L/R 读数并记录日志，但不干预运动轨迹。插件在视觉偏差下的自动纠正依靠 freejoint 插头 + 孔口倒角的被动物理碰撞引导，而非主动力控制。
+
+`configs/insertion.json` 中 `admittance_enabled: true` 时开启凝胶监控记录；设为 false 或命令行加 `--no-admittance` 跳过凝胶轮询，行为上几乎没有区别：
+
+```bash
+python apps/insert_socket.py --no-admittance
+```
+
+### 偏置注入与触觉对齐
+
+注入视觉对齐偏差（模拟定位误差），单位 mm：
+
+```bash
+python apps/insert_socket.py --align-bias-mm 0.6 0
+```
+
+关闭预插入触觉对齐阶段：
+
+```bash
+python apps/insert_socket.py --no-tactile-align
+```
+
+### 无头模式
+
+无图形界面运行（CI/测试用）：
+
+```bash
+MUJOCO_GL=egl python apps/server.py --headless --no-preview
 ```
 
 每次完整流程从预夹持 Home 开始。正常退出后，会经过本轮记录的观察位姿、抬升位姿返回 Home；出现 `INSERTION_PHASE: home` 后可以直接运行另一条路线，无需重启服务端。整个回程重新经过 IK、碰撞预检和动力学接触检查。
@@ -77,7 +145,9 @@ python apps/server.py --scene scenes/scene_inspection.xml
 |---|---|
 | `configs/camera.json` | 相机内参、分辨率、安装关系、预览频率、检测超采样 |
 | `configs/port.json` | STL 与单位、端口几何、定位特征、材质、标记安装关系 |
-| `configs/insertion.json` | 默认路线、工件布局、插头、观察位姿、距离和速度 |
+| `configs/insertion.json` | 默认路线、工件布局、插头尺寸、观察位姿、距离和速度、导纳参数 |
+| `configs/materials.yaml` | 插头/凝胶/手指/孔壁的摩擦、接触刚度、noslip 迭代数 |
+| `configs/grasp_compliance.yaml` | 柔顺夹持 6-DOF 弹簧刚度、阻尼、行程范围 |
 | `configs/vision/aruco.json` | ArUco 检测与位姿求解参数 |
 | `configs/vision/pnp.json` | PnP 特征检测与位姿求解参数 |
 | `configs/inspection.json` | 普通检测场景的桌子与工件 |
@@ -114,6 +184,17 @@ python apps/preview.py --close
 python apps/server.py --no-preview   # 仅关闭自动 RGB 窗口
 MUJOCO_GL=egl python apps/server.py --headless  # 无图形界面，仍可拍照检测
 ```
+
+## 高保真物理
+
+当前分支使用 freejoint 插头 + noslip 摩擦夹持，替代了 main 分支的刚性 TCP 挂载。核心差异：
+
+- **插头**：worldbody 下的 6-DOF freejoint 刚体，受重力，由凝胶 + 手指摩擦力夹持
+- **凝胶**：双路 Xense G1-WS 凝胶 geom 挂载在 Hand-E 内侧，提供触觉深度
+- **松爪后留孔**：release 前自动提高孔壁摩擦（动态 friction boost），防止插件掉落
+- **材料参数**：所有摩擦/接触参数集中在 `configs/materials.yaml`
+
+调整摩擦参数后需重建场景（`python tools/build_scenes.py`），然后重启服务端。
 
 ## 验证与目录
 
